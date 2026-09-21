@@ -21,6 +21,7 @@ const state = {
   ready: false,
   jobId: null,
   tagging: false,
+  immichBusy: false,
 };
 
 /* ---------------- fetch helpers ---------------- */
@@ -72,6 +73,7 @@ async function pollStatus() {
 
   $('stat').innerHTML =
     `<b>${status.images.toLocaleString()}</b> tagged images · <b>${status.tags.toLocaleString()}</b> tags`;
+  renderImmich(status.immich);
   if (!state.ready) {
     state.ready = true;
     search();
@@ -632,6 +634,173 @@ function showTagJob(job) {
   }
 }
 
+/* ---------------- immich ---------------- */
+
+function renderImmich(immich) {
+  const sync = $('immich-sync');
+  const clean = $('immich-clean');
+  if (!immich || !immich.configured) {
+    sync.hidden = true;
+    clean.hidden = true;
+    return;
+  }
+  clean.hidden = false;
+  sync.hidden = !immich.pending && !state.immichBusy;
+  if (!state.immichBusy) sync.textContent = `Sync to Immich (${immich.pending.toLocaleString()})`;
+  sync.title = immich.reachable
+    ? 'Ask Immich to re-read the sidecars written since the last sync'
+    : 'Immich is not reachable right now — the sync will report why';
+}
+
+function immichPanel(title, { pct = null, done = false } = {}) {
+  const panel = $('immich-panel');
+  panel.hidden = false;
+  panel.classList.toggle('done', done);
+  $('immich-title').textContent = title;
+  $('immich-bar').style.width = pct === null ? (done ? '100%' : '0%') : `${pct}%`;
+  $('immich-pct').textContent = '';
+  $('immich-detail').replaceChildren();
+}
+
+function immichActions(buttons) {
+  $('immich-actions').replaceChildren(...buttons.map(({ label, primary, onclick, disabled }) => {
+    const button = document.createElement('button');
+    button.className = primary ? 'btn primary' : 'btn';
+    button.textContent = label;
+    button.disabled = !!disabled;
+    button.onclick = onclick;
+    return button;
+  }));
+}
+
+const dismissImmich = { label: 'Dismiss', onclick: () => { $('immich-panel').hidden = true; } };
+
+async function startImmichSync() {
+  try {
+    followImmich((await postJSON('/api/immich/sync', {})).job);
+  } catch (err) {
+    toast(err.message);
+  }
+}
+
+async function previewCleanup() {
+  immichPanel('Finding the empty tags animetag manages in Immich…');
+  immichActions([{ label: 'Cancel', onclick: () => { $('immich-panel').hidden = true; } }]);
+  let preview;
+  try {
+    preview = await api('/api/immich/cleanup-preview');
+  } catch (err) {
+    immichPanel('Could not read Immich tags', { done: true });
+    const line = document.createElement('div');
+    line.className = 'bad';
+    line.textContent = err.message;
+    $('immich-detail').appendChild(line);
+    immichActions([dismissImmich]);
+    return;
+  }
+
+  immichPanel(preview.count ? `${preview.count.toLocaleString()} empty tags can be deleted` : 'No empty tags to delete',
+              { done: !preview.count });
+  const detail = $('immich-detail');
+  const prefixes = Object.entries(preview.byPrefix).map(([name, n]) => `${name} ${n.toLocaleString()}`).join(' · ');
+  if (prefixes) detail.append(document.createTextNode(prefixes));
+  if (preview.examples.length) {
+    const list = document.createElement('div');
+    list.className = 'examples';
+    list.textContent = preview.examples.join('\n') +
+      (preview.count > preview.examples.length ? `\n… and ${(preview.count - preview.examples.length).toLocaleString()} more` : '');
+    detail.appendChild(list);
+    const note = document.createElement('div');
+    note.textContent = 'Only tags under character/, parody/, tag/, meta/ and rating/ (and their old | forms) are considered, '
+      + 'and each is checked empty again right before it is deleted.';
+    detail.appendChild(note);
+  }
+  if (!preview.count) {
+    immichActions([dismissImmich]);
+    return;
+  }
+  immichActions([
+    { label: 'Cancel', onclick: () => { $('immich-panel').hidden = true; } },
+    {
+      label: `Delete ${preview.count.toLocaleString()} tags`,
+      primary: true,
+      onclick: async () => {
+        try {
+          followImmich((await postJSON('/api/immich/cleanup', { confirm: true })).job);
+        } catch (err) {
+          toast(err.message);
+        }
+      },
+    },
+  ]);
+}
+
+const IMMICH_PHASES = {
+  starting: 'Starting…',
+  mapping: 'Reading Immich’s asset list…',
+  refresh: 'Asking Immich to re-read the sidecars…',
+  discover: 'Starting sidecar discovery…',
+  waiting: 'Waiting for Immich to re-read them…',
+  planning: 'Finding empty tags…',
+  cleanup: 'Removing empty tags…',
+};
+
+function followImmich(job) {
+  state.immichBusy = true;
+  $('immich-sync').disabled = true;
+  $('immich-clean').disabled = true;
+  showImmichJob(job);
+  if (job.active) setTimeout(pollImmich, 1000);
+}
+
+async function pollImmich() {
+  let job;
+  try {
+    job = (await api('/api/immich/sync')).job;
+  } catch (err) {
+    setTimeout(pollImmich, 3000);
+    return;
+  }
+  if (!job) return;
+  showImmichJob(job);
+  if (job.active) {
+    setTimeout(pollImmich, 1000);
+    return;
+  }
+  state.immichBusy = false;
+  $('immich-sync').disabled = false;
+  $('immich-clean').disabled = false;
+  api('/api/status').then((status) => renderImmich(status.immich)).catch(() => {});
+}
+
+function showImmichJob(job) {
+  const kind = job.kind === 'cleanup' ? 'Immich tag cleanup' : 'Immich sync';
+  if (job.active) {
+    const pct = job.phase === 'cleanup' && job.total ? Math.round((job.done / job.total) * 100) : null;
+    immichPanel(`${kind}: ${IMMICH_PHASES[job.phase] || job.phase}`, { pct });
+    if (job.phase === 'waiting' && job.total) $('immich-pct').textContent = `${job.total.toLocaleString()} jobs left`;
+    if (job.phase === 'cleanup' && job.total) $('immich-pct').textContent = `${job.done.toLocaleString()} / ${job.total.toLocaleString()}`;
+    immichActions([]);
+    return;
+  }
+  const r = job.result || {};
+  immichPanel(job.state === 'finished' ? `${kind} complete` : `${kind} did not finish`, { done: true });
+  const bits = job.kind === 'cleanup'
+    ? [`${(r.deletedTags || 0).toLocaleString()} tags deleted`, r.keptInUse ? `${r.keptInUse.toLocaleString()} kept, still in use` : '']
+    : [`${(r.refreshed || 0).toLocaleString()} re-read`, `${(r.discovered || 0).toLocaleString()} discovered`,
+       `${(r.deletedTags || 0).toLocaleString()} empty tags removed`];
+  const detail = $('immich-detail');
+  if (job.state === 'finished') detail.append(document.createTextNode(bits.filter(Boolean).join(' · ')));
+  const problem = job.error || r.reason;
+  if (problem) {
+    const line = document.createElement('div');
+    line.className = job.state === 'finished' ? 'warn' : 'bad';
+    line.textContent = problem;
+    detail.appendChild(line);
+  }
+  immichActions([dismissImmich]);
+}
+
 /* ---------------- wiring ---------------- */
 
 function init() {
@@ -692,6 +861,8 @@ function init() {
 
   $('export').onclick = startExport;
   $('tag-new').onclick = startTagging;
+  $('immich-sync').onclick = startImmichSync;
+  $('immich-clean').onclick = previewCleanup;
 
   $('rescan').onclick = async () => {
     try {
@@ -713,6 +884,7 @@ function init() {
 
   // A run carries on server-side when the page reloads; pick its progress back up.
   api('/api/tag').then((data) => { if (data.job?.active) followTagging(data.job); }).catch(() => {});
+  api('/api/immich/sync').then((data) => { if (data.job?.active) followImmich(data.job); }).catch(() => {});
 }
 
 init();

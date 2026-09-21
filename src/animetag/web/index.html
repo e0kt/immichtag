@@ -13,6 +13,8 @@
     <span class="root" id="root" title=""></span>
     <span class="stat" id="stat"></span>
     <button class="btn" id="tag-new" title="Run the tagger over every image that has no .xmp sidecar yet" disabled>Tag new images</button>
+    <button class="btn" id="immich-sync" title="Ask Immich to re-read the sidecars written since the last sync" hidden>Sync to Immich</button>
+    <button class="btn" id="immich-clean" title="Delete the empty tags animetag manages from Immich" hidden>Clean up Immich tags</button>
     <button class="btn" id="rescan">Rescan</button>
   </header>
 
@@ -119,6 +121,16 @@
     <div class="bar"><span id="tag-bar"></span></div>
     <div class="detail" id="tag-detail"></div>
     <div class="actions" id="tag-actions"></div>
+  </div>
+
+  <div class="job" id="immich-panel" hidden>
+    <div class="top">
+      <strong id="immich-title">Immich</strong>
+      <span id="immich-pct" class="hint"></span>
+    </div>
+    <div class="bar"><span id="immich-bar"></span></div>
+    <div class="detail" id="immich-detail"></div>
+    <div class="actions" id="immich-actions"></div>
   </div>
 
   <div class="job" id="export-panel" hidden>

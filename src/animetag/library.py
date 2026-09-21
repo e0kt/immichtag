@@ -137,6 +137,8 @@ class PendingSync:
         return list(merged.values())
 
     def remove(self, paths: Iterable[str]) -> None:
+        if not self.path.exists():
+            return
         gone = set(paths)
         keep = [entry for entry in self.entries() if entry["path"] not in gone]
         data = "".join(json.dumps(entry, ensure_ascii=False) + "\n" for entry in keep)

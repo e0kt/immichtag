@@ -261,7 +261,7 @@ description: "Task list for 001-pixai-full-retag"
 
 ### Tests for User Story 2
 
-- [ ] T029 [P] [US2] Write `tests/unit/test_immich_client.py` against a stdlib `ThreadingHTTPServer` fake implementing the endpoints in [contracts/immich-api.md](./contracts/immich-api.md). It covers:
+- [X] T029 [P] [US2] Write `tests/unit/test_immich_client.py` against a stdlib `ThreadingHTTPServer` fake implementing the endpoints in [contracts/immich-api.md](./contracts/immich-api.md). It covers:
   - every request carries `x-api-key`
   - `iter_assets()` pages until `nextPage` is null
   - `run_asset_job()` batches 1,200 ids into 500/500/200
@@ -270,14 +270,14 @@ description: "Task list for 001-pixai-full-retag"
   - a 404 on `PUT /api/jobs/sidecar` returns `discovery_unavailable=True`
   - `wait_idle()` polls until `active+waiting==0` for `sidecar` and `metadataExtraction`
   - no exception message or log line contains the key
-- [ ] T030 [P] [US2] Write `tests/unit/test_immich_cleanup.py` for `plan_cleanup(tags, in_use)`. It covers:
+- [X] T030 [P] [US2] Write `tests/unit/test_immich_cleanup.py` for `plan_cleanup(tags, in_use)`. It covers:
   - a managed tag not in use is a candidate, and so is a legacy `character|x`
   - a non-managed tag (`my_album/trip`, `vacation`) is never a candidate
   - an ancestor of an in-use value (`parody` when `parody/fate∕grand_order` is in use) is never a candidate
   - candidates come back deepest first
   - `run_cleanup(dry_run=True)` deletes nothing and reports the count, `byPrefix` and 20 examples
   - a candidate whose verify search returns an asset is skipped, not deleted
-- [ ] T031 [P] [US2] Write `tests/unit/test_immich_sync.py` with the fake server and a `tmp_library`. It covers:
+- [X] T031 [P] [US2] Write `tests/unit/test_immich_sync.py` with the fake server and a `tmp_library`. It covers:
   - `PathMap.parse("/data=/x")` and the `to_local`/`to_remote` round trip
   - autodetect from one asset path
   - pending entries with `had_sidecar=True` → `refresh-metadata` for exactly those asset ids
@@ -288,7 +288,7 @@ description: "Task list for 001-pixai-full-retag"
 
 ### Implementation for User Story 2
 
-- [ ] T032 [US2] Create `src/animetag/immich.py`, part 1 (client), per contracts/immich-api.md:
+- [X] T032 [US2] Create `src/animetag/immich.py`, part 1 (client), per contracts/immich-api.md:
   - `ImmichClient(settings)` on `urllib.request`, with JSON bodies, a 30 s timeout, and retries at 1, 4 and 16 s on connection errors and 5xx
   - `ImmichUnavailable`, and `ImmichAuthError(endpoint, permission)`
   - `version()`
@@ -300,11 +300,11 @@ description: "Task list for 001-pixai-full-retag"
   - `wait_idle(timeout=7200, poll=5, on_progress)`
   - `list_tags()` and `delete_tag(id)`
   - `PathMap` with `parse`, `to_local`, `to_remote` and `autodetect(client, root)`
-- [ ] T033 [US2] Add part 2 (cleanup) to `src/animetag/immich.py`, per research R9:
+- [X] T033 [US2] Add part 2 (cleanup) to `src/animetag/immich.py`, per research R9:
   - `managed_in_use(root) -> set[str]`: every managed tag value (normalized) across all sidecars via `sidecar.read_tags`, plus all their ancestor paths
   - `plan_cleanup(tags, in_use) -> list[tag]`, deepest first
   - `run_cleanup(client, candidates, dry_run, on_progress) -> CleanupResult(count, deleted, skipped_nonempty, by_prefix, examples)`, which verifies each candidate is empty before `delete_tag`
-- [ ] T034 [US2] Add part 3 (sync) to `src/animetag/immich.py`, per research R8. `sync(root, settings, state_dir, all=False, cleanup=True, on_progress=None) -> SyncResult(ok, reason, refreshed, discovered, deleted_tags, pending)`:
+- [X] T034 [US2] Add part 3 (sync) to `src/animetag/immich.py`, per research R8. `sync(root, settings, state_dir, all=False, cleanup=True, on_progress=None) -> SyncResult(ok, reason, refreshed, discovered, deleted_tags, pending)`:
   1. map the local paths to asset ids with `iter_assets` and `PathMap`
   2. refresh the known assets
   3. run discovery if any entry is NEW (or always with `all`)
@@ -313,20 +313,20 @@ description: "Task list for 001-pixai-full-retag"
   6. `PendingSync.remove` the covered entries only on success
 
   It catches `ImmichUnavailable`/`ImmichAuthError` into a `SyncResult`. A discovery 404 sets `reason = "discovery needed: Immich → Administration → Jobs → Sidecar metadata → Discover"` but still counts as ok for the refreshed entries.
-- [ ] T035 [US2] Create `src/animetag/immich_cli.py` for `animetag-immich sync [--all] [--no-cleanup] [--dry-run] | cleanup [--dry-run] | status`, per contracts/cli.md:
+- [X] T035 [US2] Create `src/animetag/immich_cli.py` for `animetag-immich sync [--all] [--no-cleanup] [--dry-run] | cleanup [--dry-run] | status`, per contracts/cli.md:
   - Without a key: exit 2 with the exact message from the contract.
   - `status`: prints the version, reachability, pending count, managed-empty count, and a permission check made by calling `GET /api/tags`, `GET /api/jobs` and a size-1 search.
   - `sync --dry-run`: prints what would be refreshed, discovered and deleted without calling any write endpoint.
-- [ ] T036 [US2] Wire automatic sync into the tagging run in `src/animetag/run.py` and `src/animetag/cli.py`:
+- [X] T036 [US2] Wire automatic sync into the tagging run in `src/animetag/run.py` and `src/animetag/cli.py`:
   - `src/animetag/run.py`: `after_write` calls `immich.sync(root, settings, state_dir)` when `options.immich` is on, a key is configured and at least one sidecar was written. The result goes in `RunProgress.sync`; `state` becomes `syncing` meanwhile.
   - `src/animetag/cli.py`: print `Immich: refreshed N, discovered M, removed K empty tags.`, or `Immich sync pending (N images): <reason>. Run: animetag-immich sync`. The exit code is unchanged (FR-021).
-- [ ] T037 [US2] In `src/animetag/backup_cli.py`, make `restore` run `immich.sync` for the restored paths unless `--no-immich`, and print the same result lines as T036.
-- [ ] T038 [US2] Add the Immich routes to `src/animetag/web.py`, per [contracts/web-api.md](./contracts/web-api.md#new):
+- [X] T037 [US2] In `src/animetag/backup_cli.py`, make `restore` run `immich.sync` for the restored paths unless `--no-immich`, and print the same result lines as T036.
+- [X] T038 [US2] Add the Immich routes to `src/animetag/web.py`, per [contracts/web-api.md](./contracts/web-api.md#new):
   - `POST/GET /api/immich/sync`: one background `SyncJob` at a time, with `phase` in refresh|discover|waiting|cleanup, `done` and `total`
   - `GET /api/immich/cleanup-preview`
   - `POST /api/immich/cleanup`: 400 without `{"confirm": true}`
   - `/api/status` gains `immich: {configured, reachable, pending}`
-- [ ] T039 [US2] Add the Immich UI to `src/animetag/web/index.html`, `src/animetag/web/app.js` and `src/animetag/web/app.css`:
+- [X] T039 [US2] Add the Immich UI to `src/animetag/web/index.html`, `src/animetag/web/app.js` and `src/animetag/web/app.css`:
   - a "Sync to Immich (N)" header button, visible when `status.immich.pending > 0`, with phase progress from polling `GET /api/immich/sync`
   - a "Clean up Immich tags" panel that shows the preview (count, by prefix, examples) and enables a Delete button only after the preview has loaded; it posts `confirm: true`
   - no `alert`/`confirm` dialogs

@@ -32,7 +32,7 @@ from urllib.parse import parse_qs, urlparse
 
 from PIL import Image
 
-from animetag import filterer, library, run, sidecar
+from animetag import config, filterer, immich, library, run, sidecar
 from animetag.index import IndexHolder, LibraryIndex
 
 STATIC_DIR = Path(__file__).parent / "web"
@@ -121,6 +121,25 @@ class TagJob:
         }
 
 
+@dataclass
+class SyncJob:
+    """An Immich sync or tag cleanup, run on a worker thread. One at a time."""
+
+    id: str
+    kind: str  # sync | cleanup
+    state: str = "running"  # running | finished | error
+    phase: str = "starting"
+    done: int = 0
+    total: int = 0
+    result: Dict[str, Any] | None = None
+    error: str | None = None
+
+    def as_dict(self) -> Dict[str, Any]:
+        return {"id": self.id, "kind": self.kind, "state": self.state, "active": self.state == "running",
+                "phase": self.phase, "done": self.done, "total": self.total,
+                "result": self.result, "error": self.error}
+
+
 class AppState:
     def __init__(self, root: Path) -> None:
         self.holder = IndexHolder(root)
@@ -129,6 +148,9 @@ class AppState:
         self.tag_lock = threading.Lock()
         self.thumbs: Dict[Tuple[int, int], bytes] = {}
         self.thumb_lock = threading.Lock()
+        self.sync_job: SyncJob | None = None
+        self.sync_lock = threading.Lock()
+        self._reachable: Tuple[float, bool] = (0.0, False)
 
     # -- index ---------------------------------------------------------------
 
@@ -142,6 +164,7 @@ class AppState:
             "images": index.image_count if index else 0,
             "tags": index.tag_count if index else 0,
             "error": holder.error,
+            "immich": self.immich_status(),
         }
 
     def reindex(self, root: Path | None = None) -> None:
@@ -361,6 +384,91 @@ class AppState:
         # catch the old index still marked ready.
         job.state = progress.state
 
+    # -- immich --------------------------------------------------------------
+
+    def _state_dir(self) -> Path:
+        return config.state_dir(self.holder.root)
+
+    def immich_status(self) -> Dict[str, Any]:
+        settings = config.load_immich_settings()
+        pending = len(library.PendingSync(self._state_dir(), self.holder.root))
+        if not settings.configured:
+            return {"configured": False, "reachable": False, "pending": pending}
+        checked, reachable = self._reachable
+        if time.monotonic() - checked > 30:  # status is polled often; Immich need not be
+            try:
+                immich.ImmichClient(settings, timeout=3).version()
+                reachable = True
+            except immich.ImmichError:
+                reachable = False
+            self._reachable = (time.monotonic(), reachable)
+        return {"configured": True, "reachable": reachable, "pending": pending}
+
+    def _in_use(self) -> set:
+        """Managed tags the library uses, from the index rather than 100k file reads."""
+        index = self.holder.require()
+        return immich.in_use_from_tags(tag for tags in index.display_tags for tag in tags)
+
+    def sync_status(self) -> Dict[str, Any]:
+        job = self.sync_job
+        return {"job": job.as_dict() if job else None}
+
+    def _start_job(self, kind: str, target) -> Dict[str, Any]:
+        settings = config.load_immich_settings()
+        if not settings.configured:
+            raise ValueError("No Immich API key configured (see the README: [immich] in config.toml).")
+        with self.sync_lock:
+            job = self.sync_job
+            if job is None or job.state != "running":
+                job = self.sync_job = SyncJob(id=uuid.uuid4().hex[:12], kind=kind)
+                threading.Thread(target=self._run_job, args=(job, target, settings), daemon=True).start()
+        return {"job": job.as_dict()}
+
+    def _run_job(self, job: SyncJob, target, settings) -> None:
+        def progress(phase: str, done: int = 0, total: int = 0) -> None:
+            job.phase, job.done, job.total = phase, done, total
+        try:
+            job.result = target(settings, progress)
+            ok = job.result.get("ok", True)
+            job.error = None if ok else job.result.get("reason")
+            job.state = "finished" if ok else "error"
+        except Exception as exc:
+            job.error = str(exc)
+            job.state = "error"
+
+    def start_sync(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+        full = bool(payload.get("all"))
+        root, state_dir = self.holder.root, self._state_dir()
+
+        def target(settings, progress):
+            result = immich.sync(root, settings, state_dir, all=full, on_progress=progress, in_use=self._in_use)
+            return result.as_dict()
+
+        return self._start_job("sync", target)
+
+    def cleanup_preview(self) -> Dict[str, Any]:
+        settings = config.load_immich_settings()
+        if not settings.configured:
+            raise ValueError("No Immich API key configured.")
+        client = immich.ImmichClient(settings)
+        plan = immich.plan_cleanup(client.list_tags(), self._in_use())
+        preview = immich.run_cleanup(client, plan, dry_run=True)
+        return {"count": preview.count, "byPrefix": preview.by_prefix, "examples": preview.examples}
+
+    def start_cleanup(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+        if payload.get("confirm") is not True:
+            raise ValueError("Deleting Immich tags needs {\"confirm\": true} — load the preview first.")
+
+        def target(settings, progress):
+            client = immich.ImmichClient(settings)
+            progress("planning")
+            plan = immich.plan_cleanup(client.list_tags(), self._in_use())
+            result = immich.run_cleanup(client, plan, on_progress=lambda d, t: progress("cleanup", d, t))
+            return {"ok": True, "deletedTags": result.deleted, "keptInUse": result.skipped_nonempty,
+                    "count": result.count}
+
+        return self._start_job("cleanup", target)
+
     # -- misc ----------------------------------------------------------------
 
     def pick_folder(self) -> Dict[str, Any]:
@@ -446,6 +554,10 @@ def make_handler(state: AppState) -> type:
                     self._json(state.untagged_count())
                 elif url.path == "/api/tag":
                     self._json(state.tagging())
+                elif url.path == "/api/immich/sync":
+                    self._json(state.sync_status())
+                elif url.path == "/api/immich/cleanup-preview":
+                    self._json(state.cleanup_preview())
                 elif url.path.startswith("/api/export/"):
                     job = state.jobs.get(url.path.rsplit("/", 1)[-1])
                     self._json(job.as_dict() if job else {"error": "no such job"}, 200 if job else 404)
@@ -476,6 +588,10 @@ def make_handler(state: AppState) -> type:
                     self._json(state.status())
                 elif url.path == "/api/tag":
                     self._json(state.start_tagging())
+                elif url.path == "/api/immich/sync":
+                    self._json(state.start_sync(payload))
+                elif url.path == "/api/immich/cleanup":
+                    self._json(state.start_cleanup(payload))
                 elif url.path == "/api/tag/cancel":
                     job = state.tag_job
                     if job:
@@ -515,7 +631,7 @@ def make_handler(state: AppState) -> type:
 
         def _fail(self, exc: Exception) -> None:
             message = str(exc) or exc.__class__.__name__
-            if not isinstance(exc, (ValueError, RuntimeError, KeyError, IndexError, OSError)):
+            if not isinstance(exc, (ValueError, RuntimeError, KeyError, IndexError, OSError, immich.ImmichError)):
                 traceback.print_exc()
             try:
                 self._json({"error": message}, 400)

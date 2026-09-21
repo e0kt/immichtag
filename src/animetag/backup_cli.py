@@ -57,10 +57,17 @@ def cmd_restore(root, state_dir, args) -> int:
 
 
 def sync_after_restore(root, state_dir, args) -> int:
-    # Wired to the Immich sync once that exists (T037).
     pending = len(library.PendingSync(state_dir, root))
-    if pending:
-        print(f"Immich sync pending ({pending} images). Run: animetag-immich sync")
+    settings = config.load_immich_settings()
+    if args.no_immich or not settings.configured:
+        why = "skipped by --no-immich" if args.no_immich else "no Immich API key configured"
+        if pending:
+            print(f"Immich sync pending ({pending} images): {why}. Run: animetag-immich sync")
+        return 0
+    from animetag import immich, immich_cli
+
+    print("Syncing to Immich ...")
+    immich_cli.print_sync(immich.sync(root, settings, state_dir), dry_run=False)
     return 0
 
 
