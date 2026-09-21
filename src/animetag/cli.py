@@ -14,7 +14,7 @@ import threading
 
 from tqdm import tqdm
 
-from animetag import backup, config, filterer, library, run, tagger, vocab
+from animetag import config, filterer, library, run, tagger, vocab
 
 EXIT_OK, EXIT_ALL_FAILED, EXIT_USAGE, EXIT_LOCKED, EXIT_INTERRUPTED = 0, 1, 2, 3, 130
 

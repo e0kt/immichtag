@@ -188,6 +188,11 @@ class ImmichClient:
                 return False
             time.sleep(poll)
 
+    def asset_tags(self, asset_id: str) -> List[str]:
+        """The full tag values Immich has on one asset."""
+        data = self._request("GET", f"/api/assets/{asset_id}") or {}
+        return [tag["value"] for tag in data.get("tags") or []]
+
     def list_tags(self) -> List[dict]:
         return self._request("GET", "/api/tags") or []
 

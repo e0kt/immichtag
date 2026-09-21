@@ -439,7 +439,7 @@ description: "Task list for 001-pixai-full-retag"
 
 ## Phase 7: Polish & Cross-Cutting Concerns
 
-- [ ] T052 [P] Rewrite `README.md` for animetag (FR-027, FR-028). Cover:
+- [X] T052 [P] Rewrite `README.md` for animetag (FR-027, FR-028). Cover:
   - the five commands and their flags, with a migration section: the old `wd14*` commands and `WD14_DIR` are gone
   - Immich setup: an admin API key with `asset.read, asset.update, job.create, job.read, tag.read, tag.delete`; `~/.config/animetag/config.toml` (chmod 600) with `path_map`
   - what the automatic sync and cleanup do and what they never touch
@@ -448,22 +448,22 @@ description: "Task list for 001-pixai-full-retag"
   - performance (≈1.8 img/s on the M5, ≈14 h for the library)
   - removing the old WD14 cache
   - an updated Layout table with the new modules
-- [ ] T053 [P] Create `scripts/bench20.py`:
+- [X] T053 [P] Create `scripts/bench20.py`:
   - reads a list of image paths (default: 20 random images with `--seed 20`, read-only)
   - times preprocess and inference per image with `animetag.tagger`
   - prints img/s, images with a character, and the average number of `tag/` tags
   - never writes sidecars
-- [ ] T054 [P] Create `scripts/verify_immich.py`:
+- [X] T054 [P] Create `scripts/verify_immich.py`:
   - samples `--sample N` random local images that have sidecars
   - maps them to Immich assets via `immich.PathMap`/`iter_assets`
   - fetches `GET /api/assets/{id}` tags and compares them as sets with `sidecar.read_tags`
   - prints the mismatches and exits 1 if any exist (SC-003)
-- [ ] T055 Audit the rename and dependency removal across `src/`, `tests/` and `pyproject.toml`:
+- [X] T055 Audit the rename and dependency removal across `src/`, `tests/` and `pyproject.toml`:
   - `rg -n -i "wd14" --glob '!specs/**' --glob '!README.md' .` returns only the `WD14_DIR` notice in `src/animetag/config.py` and its test.
   - `rg -n "onnxruntime|pandas" src tests pyproject.toml` returns nothing.
   - `uv run animetag --help`, `animetag-filter --help`, `animetag-web --help`, `animetag-immich --help` and `animetag-backup --help` all work.
-- [ ] T056 Run `uv run pytest -q` over `tests/` (all unit tests, plus integration tests with the model cached), then quickstart scenarios 1–7 end to end, and fix any failures before the full run.
-- [ ] T057 Operational step, run by the user, about 13–15 h (scenario 8 in `specs/001-pixai-full-retag/quickstart.md`):
+- [ ] T056 *(Status 2026-09-21: 132 tests pass, including integration; quickstart 1–6 verified on library copies. Scenario 7 is still open: it needs the user's Immich API key.)* Run `uv run pytest -q` over `tests/` (all unit tests, plus integration tests with the model cached), then quickstart scenarios 1–7 end to end, and fix any failures before the full run.
+- [ ] T057 *(Status: waiting for the user.)* Operational step, run by the user, about 13–15 h (scenario 8 in `specs/001-pixai-full-retag/quickstart.md`):
   1. Take a fresh Immich DB backup, then run `uv run animetag`; it can be resumed.
   2. Verify the success criteria:
      - `uv run animetag --dry-run` shows 0 to re-tag (SC-001)
