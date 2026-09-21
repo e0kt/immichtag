@@ -3,16 +3,16 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>wd14 filter</title>
+  <title>animetag</title>
   <link rel="stylesheet" href="/app.css">
 </head>
 <body>
 <div id="app">
   <header>
-    <h1>wd14 filter</h1>
+    <h1>animetag</h1>
     <span class="root" id="root" title=""></span>
     <span class="stat" id="stat"></span>
-    <button class="btn" id="tag-new" title="Run the tagger over every image that has no .xmp sidecar yet" disabled>Tag new images</button>
+    <button class="btn" id="tag-new" title="Tag new images, then re-tag any whose sidecar another model wrote" disabled>Tag</button>
     <button class="btn" id="immich-sync" title="Ask Immich to re-read the sidecars written since the last sync" hidden>Sync to Immich</button>
     <button class="btn" id="immich-clean" title="Delete the empty tags animetag manages from Immich" hidden>Clean up Immich tags</button>
     <button class="btn" id="rescan">Rescan</button>
@@ -41,6 +41,7 @@
         <span class="hint" id="exclude-count"></span>
       </div>
       <div class="filter" id="exclude-all"></div>
+      <div class="warnings" id="exclude-warnings"></div>
       <p class="hint">
         Tags no image may carry, whichever filter matched it — unlike a shift-added tag,
         which only rules that one filter.
@@ -92,6 +93,10 @@
   </aside>
 
   <main>
+    <div class="banner" id="retag-banner" hidden>
+      <span id="retag-text"></span>
+      <button class="btn" id="retag-dismiss" title="Hide until the next reload">Dismiss</button>
+    </div>
     <div class="results-bar">
       <span class="count" id="count">—</span>
       <span style="flex:1"></span>

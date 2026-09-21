@@ -9,12 +9,13 @@ from __future__ import annotations
 
 import argparse
 import random
+import sys
 from collections import Counter
 from pathlib import Path
 
 from tqdm import tqdm
 
-from animetag import config, filterer
+from animetag import config, filterer, vocab
 from animetag.filterer import MAX_FILTERS
 
 EPILOG = """\
@@ -23,7 +24,10 @@ examples:
   animetag-filter -f "blue_hair,long_hair,school_uniform" -o ./picked
 
   # two filters: an image matching EITHER one is taken
-  animetag-filter -f "character/hatsune_miku" -f "parody/k-on!" -o ./picked
+  animetag-filter -f "character/hatsune_miku" -f "parody/fate/grand_order" -o ./picked
+
+  # a series, with or without the parody/ prefix; meta tags like meta/ai-generated work too
+  animetag-filter -f "fate/grand_order,-meta/ai-generated" -o ./picked
 
   # exclude within one filter with a leading '-', glob with '*', cap the output
   animetag-filter -f "cat_ears,-rating/explicit,blue_*" -n 200 -o ./picked
@@ -34,6 +38,44 @@ examples:
   # see what tags the library actually has before writing a filter
   animetag-filter --list-tags 40
 """
+
+
+def _plain_patterns(filters, exclude):
+    patterns = [p for f in filters for p in (*f.required, *f.excluded)]
+    if exclude is not None:
+        patterns += list(exclude.excluded)
+    return [p for p in dict.fromkeys(patterns) if not vocab.is_glob(p)]
+
+
+def warn_before_scan(filters, exclude) -> list:
+    """Patterns the current model never writes, warned about before the (slow) scan.
+    Returns them, so the scan can count how many images still carry each."""
+    model = vocab.load_model_vocabulary()
+    if model is None:
+        return []
+    flagged = []
+    for pattern in _plain_patterns(filters, exclude):
+        warning = vocab.classify_pattern(pattern, 0, model)
+        if warning and warning["kind"] != "empty":
+            flagged.append(pattern)
+            similar = f" similar: {', '.join(warning['similar'])}" if warning["similar"] else ""
+            print(f"warning: '{pattern}' is not in the new model's vocabulary.{similar}", file=sys.stderr)
+    return flagged
+
+
+def warn_after_scan(flagged, stats) -> None:
+    for pattern in flagged:
+        count = stats.counts.get(pattern, 0)
+        if count:
+            bound = "" if stats.complete else "at least "
+            print(f"warning: '{pattern}' is a legacy tag — {bound}{count} images still carry it "
+                  "until re-tagged.", file=sys.stderr)
+        elif stats.complete:
+            print(f"warning: '{pattern}' does not exist in this library.", file=sys.stderr)
+    stale = stats.legacy + stats.outdated
+    if stale:
+        bound = "" if stats.complete else "at least "
+        print(f"note: {bound}{stale} images are not re-tagged yet; results may be incomplete", file=sys.stderr)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -170,12 +212,15 @@ def main() -> int:
     # Only scan order can stop at the cap; the others have to see every match first.
     stop_after = args.max_images if (args.order == "scan" and not listing) else None
 
+    flagged = warn_before_scan(filters, exclude)
+    stats = filterer.ScanStats(watch=tuple(flagged))
+
     print(f"Scanning {root} ...")
     matches = []
     progress = tqdm(desc="Matched", unit="img")
     try:
         for match in filterer.find_matches(
-            root, filters, args.match == "all", stop_after, exclude
+            root, filters, args.match == "all", stop_after, exclude, stats
         ):
             matches.append(match)
             progress.update(1)
@@ -186,6 +231,7 @@ def main() -> int:
     progress.close()
 
     print(f"{len(matches)} matching images.")
+    warn_after_scan(flagged, stats)
     if not matches:
         return 0
 

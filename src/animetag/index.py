@@ -14,7 +14,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable, Dict, List, Sequence, Set, Tuple
 
-from animetag import filterer
+from animetag import filterer, library, sidecar, vocab
 from animetag.filterer import Match, TagFilter
 
 
@@ -36,6 +36,8 @@ class LibraryIndex:
     leaves: Dict[str, str] = field(default_factory=dict)
     #: leaf -> the full tags sharing it, so a bare pattern is a lookup, not a scan.
     by_leaf: Dict[str, List[str]] = field(default_factory=dict)
+    #: Images whose sidecar was not written by the current model, by status.
+    retag: Dict[str, int] = field(default_factory=lambda: {"legacy": 0, "outdated": 0})
     #: Which rebuild produced this index. Every rebuild reassigns ids, so anything
     #: cached by id — thumbnails, on the server and in the browser — is keyed by it too.
     generation: int = 0
@@ -72,8 +74,8 @@ class LibraryIndex:
         if cached is not None:
             return cached
 
-        if not any(char in pattern for char in "*?["):
-            if "/" in pattern:
+        if not vocab.is_glob(pattern):
+            if vocab.split_tag(pattern)[0]:
                 ids = self.postings.get(pattern, set())
             else:
                 # A bare pattern addresses the leaf, which several prefixes may share.
@@ -157,6 +159,31 @@ class LibraryIndex:
             return sorted(ids, key=mtime, reverse=how == "newest")
         return ids
 
+    def retag_counts(self) -> Dict[str, int]:
+        return dict(self.retag)
+
+    def warnings_for(self, filters: Sequence[TagFilter], exclude: TagFilter | None = None,
+                     model=None) -> List[dict]:
+        """Warnings for plain patterns the current model never writes, or that match
+        nothing — the "you typed `bangs`" case. `row` is the filter's index, or -1 for
+        the global exclusions."""
+        model = vocab.load_model_vocabulary() if model is None else model
+        rows = [(i, list(f.required) + list(f.excluded)) for i, f in enumerate(filters)]
+        if exclude is not None:
+            rows.append((-1, list(exclude.excluded)))
+        warnings: List[dict] = []
+        seen = set()
+        for row, patterns in rows:
+            for pattern in patterns:
+                if vocab.is_glob(pattern) or (row, pattern) in seen:
+                    continue
+                seen.add((row, pattern))
+                warning = vocab.classify_pattern(pattern, len(self.expand(pattern)), model,
+                                                 library_names=self.by_leaf.keys())
+                if warning:
+                    warnings.append({**warning, "row": row})
+        return warnings
+
     def tag_counts(self) -> List[Tuple[str, int]]:
         """(display tag, count), most common first. The autocomplete's source."""
         return sorted(
@@ -174,14 +201,15 @@ def build(root: Path, progress: Callable[[int], None] | None = None) -> LibraryI
     # Sharing one object per distinct spelling is most of this index's memory.
     pool: Dict[str, str] = {}
 
-    for sidecar in filterer.sidecar_files(root):
-        image = filterer.image_for_sidecar(sidecar)
+    for sidecar_path in filterer.sidecar_files(root):
+        image = filterer.image_for_sidecar(sidecar_path)
         if image is None:
             continue
-        try:
-            tags = filterer.parse_sidecar(sidecar)
-        except OSError:
-            continue
+        data = sidecar.read_sidecar(sidecar_path)
+        tags = data.tags
+        status = library.status_of(data, vocab.MODEL_REPO, vocab.MODEL_REVISION)
+        if status.value in index.retag:
+            index.retag[status.value] += 1
 
         image_id = len(index.images)
         index.images.append(image)
@@ -192,7 +220,7 @@ def build(root: Path, progress: Callable[[int], None] | None = None) -> LibraryI
             bucket = postings.get(normalized)
             if bucket is None:
                 bucket = postings[normalized] = set()
-                leaf = leaves[normalized] = normalized.rsplit("/", 1)[-1]
+                leaf = leaves[normalized] = vocab.leaf_of(normalized)
                 index.by_leaf.setdefault(leaf, []).append(normalized)
             bucket.add(image_id)
 

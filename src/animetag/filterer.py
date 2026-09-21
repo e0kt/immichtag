@@ -10,15 +10,16 @@ import io
 import os
 import re
 import shutil
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Iterable, Iterator, List, Sequence, Tuple
+from typing import Dict, Iterable, Iterator, List, Sequence, Tuple
 
 from PIL import Image
 
+from animetag import library, vocab
 from animetag import sidecar as sidecar_io
 from animetag.library import IMAGE_EXTS, SKIP_DIRS
-from animetag.vocab import normalize
+from animetag.vocab import is_glob, leaf_of, normalize, split_tag
 
 #: A filter is a group of tag patterns, so this caps the groups, not the tags in them.
 MAX_FILTERS = 10
@@ -54,9 +55,9 @@ def human_size(num_bytes: float) -> str:
 class TagFilter:
     """One `--filter` group: every `required` tag must be present, no `excluded` one may be.
 
-    Patterns holding a `/` are matched against the full hierarchical tag
-    (`character/hatsune_miku`); bare ones against the leaf (`hatsune_miku`), so
-    `blue_hair` finds `tag/blue_hair` without the user spelling out the prefix.
+    A pattern starting with a managed prefix (`character/hatsune_miku`, `rating/*`) is
+    matched against the full tag; anything else against the name after the prefix, so
+    `blue_hair` finds `tag/blue_hair` and `fate/grand_order` finds `parody/fate∕grand_order`.
     """
 
     source: str
@@ -97,16 +98,16 @@ def pattern_matches(pattern: str, full_tag: str, leaf_tag: str) -> bool:
     The single definition of the matching rule — the CLI walks tags with it and the
     web index expands it over the vocabulary, so the two can never drift apart.
     """
-    target = full_tag if "/" in pattern else leaf_tag
-    if any(char in pattern for char in "*?["):
+    target = full_tag if split_tag(pattern)[0] else leaf_tag
+    if is_glob(pattern):
         return fnmatch.fnmatchcase(target, pattern)
     return pattern == target
 
 
 def _has_tag(pattern: str, full_tags: Sequence[str], leaf_tags: Sequence[str]) -> bool:
-    if not any(char in pattern for char in "*?["):
+    if not is_glob(pattern):
         # The overwhelmingly common case: a plain tag needs no per-tag walk.
-        return pattern in (full_tags if "/" in pattern else leaf_tags)
+        return pattern in (full_tags if split_tag(pattern)[0] else leaf_tags)
     return any(pattern_matches(pattern, full, leaf) for full, leaf in zip(full_tags, leaf_tags))
 
 
@@ -163,12 +164,44 @@ class Match:
     tags: List[str]
 
 
+@dataclass
+class ScanStats:
+    """What a scan saw besides its matches: how many sidecars still need re-tagging,
+    and how many carry each `watch` pattern (for the legacy-tag warnings)."""
+
+    watch: Tuple[str, ...] = ()
+    scanned: int = 0
+    legacy: int = 0
+    outdated: int = 0
+    counts: Dict[str, int] = field(default_factory=dict)
+    #: False when the scan stopped early at --max-images, so the numbers are lower bounds.
+    complete: bool = True
+
+    def observe(self, data: sidecar_io.SidecarData) -> None:
+        self.scanned += 1
+        status = library.status_of(data, vocab.MODEL_REPO, vocab.MODEL_REVISION)
+        self.legacy += status is library.Status.LEGACY
+        self.outdated += status is library.Status.OUTDATED
+        if self.watch:
+            full, leaf = normalized_tags(data.tags)
+            for pattern in self.watch:
+                if _has_tag(pattern, full, leaf):
+                    self.counts[pattern] = self.counts.get(pattern, 0) + 1
+
+
+def normalized_tags(tags: Sequence[str]) -> Tuple[List[str], List[str]]:
+    """(full, leaf) normalized forms, the two things a pattern can be matched against."""
+    full = [normalize(t) for t in tags]
+    return full, [leaf_of(t) for t in full]
+
+
 def find_matches(
     root: Path,
     filters: Sequence[TagFilter],
     match_all: bool = False,
     stop_after: int | None = None,
     exclude: TagFilter | None = None,
+    stats: ScanStats | None = None,
 ) -> Iterator[Match]:
     """Yield tagged images passing the filters, minus anything `exclude` vetoes.
 
@@ -180,14 +213,13 @@ def find_matches(
         image = image_for_sidecar(sidecar)
         if image is None:
             continue
-        try:
-            tags = parse_sidecar(sidecar)
-        except OSError:
-            continue
+        data = sidecar_io.read_sidecar(sidecar)
+        tags = data.tags
+        if stats is not None:
+            stats.observe(data)
 
         if filters or exclude:
-            full = [normalize(t) for t in tags]
-            leaf = [t.rsplit("/", 1)[-1] for t in full]
+            full, leaf = normalized_tags(tags)
             if exclude and not exclude.matches(full, leaf):
                 continue
             if filters:
@@ -198,6 +230,8 @@ def find_matches(
         yield Match(image=image, sidecar=sidecar, tags=tags)
         found += 1
         if stop_after is not None and found >= stop_after:
+            if stats is not None:
+                stats.complete = False
             return
 
 

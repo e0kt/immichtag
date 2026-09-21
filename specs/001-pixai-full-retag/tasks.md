@@ -348,7 +348,7 @@ description: "Task list for 001-pixai-full-retag"
 
 ### Tests for User Story 3
 
-- [ ] T040 [P] [US3] Write `tests/unit/test_filterer_patterns.py` for `pattern_matches` and `TagFilter`. It covers:
+- [X] T040 [P] [US3] Write `tests/unit/test_filterer_patterns.py` for `pattern_matches` and `TagFilter`. It covers:
   - `fate/grand_order`, `parody/fate/grand_order` and `Parody/Fate∕Grand Order` all match the stored `parody/fate∕grand_order`
   - `grand_order` alone does not
   - `rating/explicit` matches only `rating/explicit`
@@ -357,8 +357,8 @@ description: "Task list for 001-pixai-full-retag"
   - a foreign `my_album/trip` is matched by `my_album/trip` as a whole name
   - a legacy `tag/\||/` is matched by `\||/`
   - `-tag` exclusions and `--exclude` keep today's semantics
-- [ ] T041 [P] [US3] Write `tests/unit/test_filter_parity.py`. Build a small library in `tmp_path` whose sidecars cover slash names, legacy WD14 tags, meta and parody tags. For 12 filter/exclude combinations, `index.build(root).select(...)` returns exactly the same images as `filterer.find_matches(...)` (FR-026).
-- [ ] T042 [P] [US3] Write `tests/unit/test_vocab_warnings.py` with a fake model vocabulary (`blunt_bangs`, `swept_bangs`, `hair_between_eyes`, `blue_hair`) and library counts `{tag/bangs: 42}`. It covers:
+- [X] T041 [P] [US3] Write `tests/unit/test_filter_parity.py`. Build a small library in `tmp_path` whose sidecars cover slash names, legacy WD14 tags, meta and parody tags. For 12 filter/exclude combinations, `index.build(root).select(...)` returns exactly the same images as `filterer.find_matches(...)` (FR-026).
+- [X] T042 [P] [US3] Write `tests/unit/test_vocab_warnings.py` with a fake model vocabulary (`blunt_bangs`, `swept_bangs`, `hair_between_eyes`, `blue_hair`) and library counts `{tag/bangs: 42}`. It covers:
   - `classify_pattern("bangs")` → `legacy` with count 42
   - `"blue_hiar"` → `unknown` with `blue_hair` suggested
   - a vocabulary tag with no images → `empty`
@@ -368,32 +368,32 @@ description: "Task list for 001-pixai-full-retag"
 
 ### Implementation for User Story 3
 
-- [ ] T043 [US3] Make matching category-aware in `src/animetag/filterer.py`, per data-model.md → Tag:
+- [X] T043 [US3] Make matching category-aware in `src/animetag/filterer.py`, per data-model.md → Tag:
   - `pattern_matches(pattern, full, leaf)` targets the full tag when `vocab.split_tag(pattern)[0]` is a managed prefix, and the leaf otherwise.
   - `_has_tag` uses the same rule.
   - `find_matches` computes leaves with `vocab.leaf_of` instead of `rsplit("/", 1)`.
   - `TagFilter.parse` and `parse_exclusions` normalize through `vocab.normalize`.
   - `find_matches` gains an optional `stats` collector that counts sidecar statuses and the occurrences of requested patterns, for T046.
   - Update the docstrings that describe the old "contains a `/`" rule.
-- [ ] T044 [P] [US3] Extend `src/animetag/vocab.py`:
+- [X] T044 [P] [US3] Extend `src/animetag/vocab.py`:
   - `load_model_vocabulary()`: `hf_hub_download(MODEL_REPO, "config.json", revision=MODEL_REVISION)`, mapping each normalized name → (category, prefix or None for style). Cached per process; returns None when unavailable.
   - `classify_pattern(pattern, library_counts, model_vocab) -> Warning | None` with kinds `legacy`, `unknown` and `empty`
   - `suggest(name, candidates, n=5)` via `difflib.get_close_matches` plus substring matches
-- [ ] T045 [US3] Update `src/animetag/index.py`:
+- [X] T045 [US3] Update `src/animetag/index.py`:
   - leaves via `vocab.leaf_of`, and `by_leaf` keyed on the new leaf
   - during `build()`, record each image's `library.Status` from its sidecar provenance, exposed as `retag_counts() -> {"legacy": n, "outdated": n}`
   - `warnings_for(filters, exclude) -> list[dict]`, returning `{pattern, kind, count, similar}` for plain patterns that expand to nothing, using `vocab.classify_pattern` with the index's tag counts and the model vocabulary
-- [ ] T046 [US3] Update `src/animetag/filter_cli.py`, per [contracts/cli.md → animetag-filter](./contracts/cli.md#animetag-filter--export):
+- [X] T046 [US3] Update `src/animetag/filter_cli.py`, per [contracts/cli.md → animetag-filter](./contracts/cli.md#animetag-filter--export):
   - Before scanning: warn about plain patterns missing from the model vocabulary, with suggestions.
   - After scanning: print the legacy count, or `does not exist`, from the `stats` collector (`at least N` when stopped early).
   - Print `note: N images are not re-tagged yet; results may be incomplete` when the scan saw LEGACY/OUTDATED sidecars.
   - Update the `EPILOG` examples to tags that exist in the new vocabulary (e.g. `parody/fate/grand_order`, `meta/ai-generated`, `-x rating/explicit`).
-- [ ] T047 [US3] Update `src/animetag/web.py`:
+- [X] T047 [US3] Update `src/animetag/web.py`:
   - `/api/search` adds `warnings` from `index.warnings_for`.
   - `/api/status` adds `retag` (from `index.retag_counts()`) and `model: {name, revision[:7]}`.
   - `GET /api/untagged` is renamed to `GET /api/pending-tagging`, returning `{"new","legacy","outdated","current"}` from `library.scan`.
   - Update the module docstring to describe animetag and PixAI.
-- [ ] T048 [US3] Update `src/animetag/web/index.html`, `src/animetag/web/app.js` and `src/animetag/web/app.css`:
+- [X] T048 [US3] Update `src/animetag/web/index.html`, `src/animetag/web/app.js` and `src/animetag/web/app.css`:
   - The `<title>` and `<h1>` become `animetag`.
   - A dismissible banner "N images not re-tagged yet — results may be incomplete" shows when `status.retag` totals > 0.
   - Warnings render under the filter row whose pattern produced them; clicking a suggestion replaces that pattern and re-runs the search.

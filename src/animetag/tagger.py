@@ -20,9 +20,8 @@ from PIL import Image
 from torchvision.transforms import functional as TF
 
 from animetag import vocab
+from animetag.vocab import MODEL_REPO, MODEL_REVISION  # noqa: F401  (re-exported)
 
-MODEL_REPO = "pixai-labs/pixai-tagger-v1.0"
-MODEL_REVISION = "f33cfdb53c0c90b049bab9ce066eea1118970ef8"
 INPUT_SIZE = 1008
 
 #: Measured on an M5 end to end (decode + inference), for time estimates only.

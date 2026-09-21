@@ -5,9 +5,10 @@ it. Everything the CLI takes as flags is a control on that page, plus the two th
 terminal cannot give you: thumbnails of what a filter actually selects, and a match
 count that updates as you type.
 
-The page can also run the tagger over images that have no sidecar yet — the same
-selection and thresholds as `uv run animetag` — and rebuilds the index when it is done, so
-new uploads go from untagged to filterable without a terminal.
+The page can also run the tagger (PixAI Tagger v1.0) — the same selection and thresholds
+as `uv run animetag`: new images first, then any whose sidecar another model wrote — and
+rebuilds the index when it is done, so new uploads go from untagged to filterable without
+a terminal. It can sync the result into Immich and remove the tags nothing uses.
 
 Stdlib http.server on purpose — this is a personal tool on loopback, and a web
 framework would be a heavier dependency than the whole tagger.
@@ -32,7 +33,7 @@ from urllib.parse import parse_qs, urlparse
 
 from PIL import Image
 
-from animetag import config, filterer, immich, library, run, sidecar
+from animetag import config, filterer, immich, library, run, sidecar, vocab
 from animetag.index import IndexHolder, LibraryIndex
 
 STATIC_DIR = Path(__file__).parent / "web"
@@ -164,6 +165,8 @@ class AppState:
             "images": index.image_count if index else 0,
             "tags": index.tag_count if index else 0,
             "error": holder.error,
+            "retag": index.retag_counts() if index else {"legacy": 0, "outdated": 0},
+            "model": {"name": vocab.MODEL_REPO, "revision": vocab.MODEL_REVISION[:7]},
             "immich": self.immich_status(),
         }
 
@@ -207,6 +210,7 @@ class AppState:
 
         return {
             "generation": index.generation,
+            "warnings": index.warnings_for(filters, exclude),
             "total": total,
             "selected": len(ids),
             "offset": offset,
@@ -334,11 +338,15 @@ class AppState:
 
     # -- tagging -------------------------------------------------------------
 
-    def untagged_count(self) -> Dict[str, Any]:
-        """How many images a tagging run would take on right now."""
+    def pending_tagging(self) -> Dict[str, Any]:
+        """What a tagging run would take on right now: new images (no sidecar) from a quick
+        walk, re-tags from the index, which read every sidecar's provenance already."""
         root = self.holder.root
-        return {"count": sum(1 for path in library.image_files(root)
-                             if not sidecar.sidecar_path(path).exists())}
+        new = sum(1 for path in library.image_files(root) if not sidecar.sidecar_path(path).exists())
+        index = self.holder.index
+        retag = index.retag_counts() if index else {"legacy": 0, "outdated": 0}
+        current = (index.image_count - retag["legacy"] - retag["outdated"]) if index else 0
+        return {"new": new, "legacy": retag["legacy"], "outdated": retag["outdated"], "current": current}
 
     def tagging(self) -> Dict[str, Any]:
         job = self.tag_job
@@ -550,8 +558,8 @@ def make_handler(state: AppState) -> type:
                     self._send(200, state.thumbnail(image_id), "image/jpeg", "max-age=3600")
                 elif url.path == "/api/image":
                     self._image(int(query.get("id", ["-1"])[0]))
-                elif url.path == "/api/untagged":
-                    self._json(state.untagged_count())
+                elif url.path == "/api/pending-tagging":
+                    self._json(state.pending_tagging())
                 elif url.path == "/api/tag":
                     self._json(state.tagging())
                 elif url.path == "/api/immich/sync":

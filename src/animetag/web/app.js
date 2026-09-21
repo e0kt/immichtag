@@ -22,6 +22,8 @@ const state = {
   jobId: null,
   tagging: false,
   immichBusy: false,
+  warnings: [],
+  retagDismissed: false,
 };
 
 /* ---------------- fetch helpers ---------------- */
@@ -74,6 +76,7 @@ async function pollStatus() {
   $('stat').innerHTML =
     `<b>${status.images.toLocaleString()}</b> tagged images · <b>${status.tags.toLocaleString()}</b> tags`;
   renderImmich(status.immich);
+  renderRetagBanner(status.retag);
   if (!state.ready) {
     state.ready = true;
     search();
@@ -178,10 +181,15 @@ function renderFilters() {
       search();
       $('filters').querySelectorAll('.tag-input input')[i]?.focus();
     }, i));
+    const warnings = document.createElement('div');
+    warnings.className = 'warnings';
+    warnings.dataset.row = String(i);
+    card.appendChild(warnings);
     card.onmousedown = () => { state.activeFilter = i; $('viewer-target').textContent = String(i + 1); };
     host.appendChild(card);
   });
 
+  renderWarnings();
   $('filter-count').textContent = `${state.filters.length} of ${MAX_FILTERS}`;
   $('add-filter').disabled = state.filters.length >= MAX_FILTERS;
   $('viewer-target').textContent = String(state.activeFilter + 1);
@@ -313,6 +321,8 @@ async function runSearch() {
 
   state.total = data.total;
   state.selected = data.selected;
+  state.warnings = data.warnings || [];
+  renderWarnings();
 
   const capped = data.selected < data.total;
   $('count').innerHTML = data.total
@@ -515,17 +525,24 @@ async function checkUntagged() {
   button.disabled = true;
   button.textContent = 'Checking for new…';
 
-  let count = null;
+  let pending = null;
   try {
-    count = (await api('/api/untagged')).count;
+    pending = await api('/api/pending-tagging');
   } catch (err) { /* leave the button usable; a run does its own scan */ }
 
   if (state.tagging) return;  // a run started while this was counting
-  button.disabled = count === 0;
-  button.classList.toggle('attention', count > 0);
-  button.textContent = count === null
-    ? 'Tag new images'
-    : count ? `Tag ${count.toLocaleString()} new` : 'No new images';
+  if (pending === null) {
+    button.disabled = false;
+    button.textContent = 'Tag';
+    return;
+  }
+  const retag = pending.legacy + pending.outdated;
+  const parts = [];
+  if (pending.new) parts.push(`Tag ${pending.new.toLocaleString()} new`);
+  if (retag) parts.push(`${parts.length ? 're-tag' : 'Re-tag'} ${retag.toLocaleString()}`);
+  button.disabled = !parts.length;
+  button.classList.toggle('attention', parts.length > 0);
+  button.textContent = parts.length ? parts.join(' · ') : 'Nothing to tag';
 }
 
 async function startTagging() {
@@ -632,6 +649,78 @@ function showTagJob(job) {
     }
     actions.replaceChildren(button);
   }
+}
+
+/* ---------------- tag warnings ---------------- */
+
+const MANAGED_PREFIXES = ['character', 'parody', 'tag', 'meta', 'rating'];
+const NAME_SLASH = '∕';
+
+/** The same folding as vocab.normalize on the server, so a warning can find its chip. */
+function normalizeTag(tag) {
+  const folded = tag.trim().toLowerCase().replace(/ /g, '_').replace(/-/g, '_');
+  const cut = folded.indexOf('/');
+  if (cut > 0 && MANAGED_PREFIXES.includes(folded.slice(0, cut))) {
+    return folded.slice(0, cut + 1) + folded.slice(cut + 1).split('/').join(NAME_SLASH);
+  }
+  return folded.split('/').join(NAME_SLASH);
+}
+
+/** Swap the chip whose normalized form is `pattern` for `replacement`, wherever it is. */
+function replacePattern(row, pattern, replacement) {
+  const lists = row < 0 ? [state.excludeAll] : [state.filters[row].include, state.filters[row].exclude];
+  for (const list of lists) {
+    const i = list.findIndex((tag) => normalizeTag(tag) === pattern);
+    if (i >= 0) {
+      list.splice(i, 1, replacement);
+      break;
+    }
+  }
+  renderFilters();
+  renderExcludeAll();
+  search();
+}
+
+function warningLine(warning) {
+  const line = document.createElement('div');
+  line.className = `warning ${warning.kind}`;
+  const quoted = `“${warning.pattern}”`;
+  const text = {
+    legacy: `${quoted} is a legacy tag — ${warning.count.toLocaleString()} images still have it until they are re-tagged; the new model never writes it.`,
+    unknown: `${quoted} does not exist in this library or the new model.`,
+    empty: `No image has ${quoted} yet.`,
+  }[warning.kind] || quoted;
+  line.append(document.createTextNode(text));
+  if (warning.similar.length) {
+    line.append(document.createTextNode(' Similar: '));
+    warning.similar.forEach((name) => {
+      const button = document.createElement('button');
+      button.className = 'alt-tag';
+      button.textContent = name;
+      button.title = `Use ${name} instead`;
+      button.onclick = () => replacePattern(warning.row, warning.pattern, name);
+      line.append(button);
+    });
+  }
+  return line;
+}
+
+function renderWarnings() {
+  const hosts = [...document.querySelectorAll('#filters .warnings'), $('exclude-warnings')];
+  hosts.forEach((host) => host.replaceChildren());
+  state.warnings.forEach((warning) => {
+    const host = warning.row < 0
+      ? $('exclude-warnings')
+      : document.querySelector(`#filters .warnings[data-row="${warning.row}"]`);
+    if (host) host.appendChild(warningLine(warning));
+  });
+}
+
+function renderRetagBanner(retag) {
+  const left = retag ? retag.legacy + retag.outdated : 0;
+  $('retag-banner').hidden = !left || state.retagDismissed;
+  $('retag-text').textContent = `${left.toLocaleString()} images are not re-tagged with the new model yet — `
+    + 'filter results may be incomplete until they are.';
 }
 
 /* ---------------- immich ---------------- */
@@ -862,6 +951,7 @@ function init() {
   $('export').onclick = startExport;
   $('tag-new').onclick = startTagging;
   $('immich-sync').onclick = startImmichSync;
+  $('retag-dismiss').onclick = () => { state.retagDismissed = true; $('retag-banner').hidden = true; };
   $('immich-clean').onclick = previewCleanup;
 
   $('rescan').onclick = async () => {
