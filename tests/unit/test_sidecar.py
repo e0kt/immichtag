@@ -3,7 +3,7 @@ import os
 import pytest
 from lxml import etree
 
-from animetag import sidecar
+from immichtag import sidecar
 
 REVISION = "f33cfdb53c0c90b049bab9ce066eea1118970ef8"
 PROV = sidecar.Provenance(
@@ -41,7 +41,7 @@ def test_read_immich_rewritten(fixtures_dir):
 
 
 def test_read_current_fixture(fixtures_dir):
-    data = sidecar.read_sidecar(fixtures_dir / "animetag_current.xmp")
+    data = sidecar.read_sidecar(fixtures_dir / "immichtag_current.xmp")
     assert data.provenance == PROV
     assert data.tags[-1] == "my_album/trip"
     assert "parody/fate∕grand_order" in data.tags
@@ -112,7 +112,7 @@ def test_write_atomic_replaces_and_leaves_no_tmp(tmp_path):
     path.write_bytes(b"old")
     sidecar.write_atomic(path, b"new")
     assert path.read_bytes() == b"new"
-    assert not list(tmp_path.glob("*animetag-tmp"))
+    assert not list(tmp_path.glob("*immichtag-tmp"))
 
 
 def test_write_atomic_crash_keeps_original(tmp_path, monkeypatch):
@@ -126,4 +126,4 @@ def test_write_atomic_crash_keeps_original(tmp_path, monkeypatch):
     with pytest.raises(OSError):
         sidecar.write_atomic(path, b"new content")
     assert path.read_bytes() == b"original"
-    assert not list(tmp_path.glob("*animetag-tmp"))
+    assert not list(tmp_path.glob("*immichtag-tmp"))

@@ -1,8 +1,8 @@
 import numpy as np
 import pytest
 
-from animetag import vocab
-from animetag.tagger import profile_name, tags_from_probs
+from immichtag import vocab
+from immichtag.tagger import profile_name, tags_from_probs
 
 NAMES = [
     "long_hair", "1girl", "blue_eyes",                 # general

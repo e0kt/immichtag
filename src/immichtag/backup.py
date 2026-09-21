@@ -23,7 +23,7 @@ import tarfile
 from pathlib import Path, PurePosixPath
 from typing import Dict, Iterable, List, Set, Tuple
 
-from animetag import sidecar
+from immichtag import sidecar
 
 
 def _backups_dir(state_dir: Path) -> Path:

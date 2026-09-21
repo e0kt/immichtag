@@ -14,8 +14,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable, Dict, List, Sequence, Set, Tuple
 
-from animetag import filterer, library, sidecar, vocab
-from animetag.filterer import Match, TagFilter
+from immichtag import filterer, library, sidecar, vocab
+from immichtag.filterer import Match, TagFilter
 
 
 @dataclass

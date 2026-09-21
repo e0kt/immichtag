@@ -1,7 +1,7 @@
 import json
 import tarfile
 
-from animetag import backup, sidecar
+from immichtag import backup, sidecar
 
 
 def _sidecars(root, contents):
@@ -57,10 +57,10 @@ def test_restore_is_byte_identical_and_takes_safety_backup(tmp_path):
     paths = _sidecars(root, originals)
     backup_id = backup.create_backup(root, paths, state)
     for path in paths:
-        sidecar.write_atomic(path, b"<animetag new/>")
+        sidecar.write_atomic(path, b"<immichtag new/>")
 
     assert sorted(backup.restore(root, backup_id, state, dry_run=True)) == sorted(paths)
-    assert all(p.read_bytes() == b"<animetag new/>" for p in paths)    # dry run wrote nothing
+    assert all(p.read_bytes() == b"<immichtag new/>" for p in paths)    # dry run wrote nothing
 
     restored = backup.restore(root, backup_id, state)
     assert sorted(restored) == sorted(paths)

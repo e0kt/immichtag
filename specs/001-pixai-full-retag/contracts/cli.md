@@ -3,16 +3,16 @@
 Five console scripts are installed by `pyproject.toml`. **No `wd14*` scripts remain** (FR-028).
 
 Common to all commands:
-- `--dir PATH` overrides the library root. Resolution order: `--dir`, then `$ANIMETAG_DIR`, then `/Users/paul/docker/immich/library/upload`.
-- If `$WD14_DIR` is set and `$ANIMETAG_DIR` is not, the command prints once to stderr: `note: WD14_DIR is no longer read; set ANIMETAG_DIR instead` (FR-029).
+- `--dir PATH` overrides the library root. Resolution order: `--dir`, then `$IMMICHTAG_DIR`, then `/Users/paul/docker/immich/library/upload`.
+- If `$WD14_DIR` is set and `$IMMICHTAG_DIR` is not, the command prints once to stderr: `note: WD14_DIR is no longer read; set IMMICHTAG_DIR instead` (FR-029).
 - Exit codes: `0` success; `1` completed, but every item failed; `2` usage error; `3` another tagging run holds the lock; `130` interrupted.
 
 ---
 
-## `animetag` — tag and re-tag
+## `immichtag` — tag and re-tag
 
 ```text
-animetag [--dir PATH] [--dry-run] [--limit N] [--overwrite]
+immichtag [--dir PATH] [--dry-run] [--limit N] [--overwrite]
          [--general-threshold F] [--character-threshold F]
          [--parody-threshold F] [--meta-threshold F]
          [--keep-common-tags] [--no-rating]
@@ -41,7 +41,7 @@ Removed flag: `--rating-threshold` (rating is argmax). If it is passed, argparse
 ```text
 Scanning /Users/paul/docker/immich/library/upload ...
 87969 images: 12 new, 87957 to re-tag (87957 legacy, 0 outdated), 0 current.
-Backing up 87957 sidecars -> ~/Library/Application Support/animetag/3fa1…/backups/20260922T031415Z (38.7 MB)
+Backing up 87957 sidecars -> ~/Library/Application Support/immichtag/3fa1…/backups/20260922T031415Z (38.7 MB)
 Loading pixai-labs/pixai-tagger-v1.0 @ f33cfdb on mps (fp16) ...
 Tagging: 100%|████| 87969/87969 [13:34:10<00:00, 1.80img/s]
 Done. written=87969 failed=0 total=87969
@@ -49,16 +49,16 @@ Immich: refreshed 87957, discovered 12, removed 7054 empty tags.
 ```
 
 - On `--device cpu` or an auto fallback, stderr gets: `warning: GPU unavailable, running on CPU — expect ≈ N h for M images`.
-- On a sync failure, the last line reads `Immich sync pending (N images): <reason>. Run: animetag-immich sync`, and the exit code is unaffected (FR-021).
+- On a sync failure, the last line reads `Immich sync pending (N images): <reason>. Run: immichtag-sync sync`, and the exit code is unaffected (FR-021).
 
 ---
 
-## `animetag-immich` — Immich synchronisation
+## `immichtag-sync` — Immich synchronisation
 
 ```text
-animetag-immich sync    [--dir PATH] [--all] [--no-cleanup] [--dry-run]
-animetag-immich cleanup [--dir PATH] [--dry-run]
-animetag-immich status  [--dir PATH]
+immichtag-sync sync    [--dir PATH] [--all] [--no-cleanup] [--dry-run]
+immichtag-sync cleanup [--dir PATH] [--dry-run]
+immichtag-sync status  [--dir PATH]
 ```
 
 | Subcommand | Behaviour |
@@ -68,25 +68,25 @@ animetag-immich status  [--dir PATH]
 | `cleanup` | Delete the empty managed tags (FR-019); `--dry-run` prints `would delete N tags`, 20 examples and the prefix counts (FR-020) |
 | `status` | Reachability, Immich version, key permissions check, pending count, managed empty-tag count |
 
-Without a configured key, every subcommand exits 2 with the message `Immich API key not configured: set [immich].api_key in ~/.config/animetag/config.toml or ANIMETAG_IMMICH_API_KEY`.
+Without a configured key, every subcommand exits 2 with the message `Immich API key not configured: set [immich].api_key in ~/.config/immichtag/config.toml or IMMICHTAG_API_KEY`.
 
 ---
 
-## `animetag-backup` — sidecar backups
+## `immichtag-backup` — sidecar backups
 
 ```text
-animetag-backup list    [--dir PATH]
-animetag-backup restore ID [--dir PATH] [--dry-run] [--no-immich]
+immichtag-backup list    [--dir PATH]
+immichtag-backup restore ID [--dir PATH] [--dry-run] [--no-immich]
 ```
 
 | Subcommand | Behaviour |
 |---|---|
 | `list` | One line per backup: id, file count, compressed size and reason |
-| `restore ID` | Take a safety backup, write the archived sidecars back atomically, add them to the pending sync list, then run `animetag-immich sync` unless `--no-immich` |
+| `restore ID` | Take a safety backup, write the archived sidecars back atomically, add them to the pending sync list, then run `immichtag-sync sync` unless `--no-immich` |
 
 ---
 
-## `animetag-filter` — export
+## `immichtag-filter` — export
 
 Same flags as today's `wd14-filter` (`--filter/-f`, `--exclude/-x`, `--match`, `--out/-o`, `--max-images/-n`, `--max-size`, `--no-compress`, `--order`, `--seed`, `--copy-sidecar`, `--list-tags`, `--dry-run`, `--dir`).
 
@@ -110,6 +110,6 @@ Same flags as today's `wd14-filter` (`--filter/-f`, `--exclude/-x`, `--match`, `
 
 ---
 
-## `animetag-web` — browser UI
+## `immichtag-web` — browser UI
 
 Same flags as today's `wd14-web` (`--dir`, `--port`, `--host`, `--no-browser`). The HTTP contract is in [web-api.md](./web-api.md).

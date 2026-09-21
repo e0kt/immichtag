@@ -1,15 +1,15 @@
-"""Command line entry point for the web UI: `uv run animetag-web`."""
+"""Command line entry point for the web UI: `uv run immichtag-web`."""
 
 from __future__ import annotations
 
 import argparse
 
-from animetag import config, web
+from immichtag import config, web
 
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="animetag-web",
+        prog="immichtag-web",
         description=(
             "Browser UI for the library: tag new images, pick tags with autocomplete, "
             "see the matches as thumbnails, and export them to a folder."
@@ -18,7 +18,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--dir",
         default=None,
-        help=f"Directory to index (default: $ANIMETAG_DIR, else {config.DEFAULT_ROOT})",
+        help=f"Directory to index (default: $IMMICHTAG_DIR, else {config.DEFAULT_ROOT})",
     )
     # None, not the default itself: an explicitly chosen port must never be swapped
     # for a free one, or the server comes up somewhere the user isn't looking.

@@ -1,4 +1,4 @@
-# animetag
+# immichtag
 
 Anime image tagger for an Immich library. [PixAI Tagger v1.0] writes Immich-compatible XMP
 sidecars (`image.jpg` → `image.jpg.xmp`) with `character/`, `parody/`, `tag/`, `meta/` and
@@ -10,7 +10,7 @@ with the sidecars.
 ## Usage
 
 ```bash
-uv run animetag
+uv run immichtag
 ```
 
 That is the whole normal workflow. The command scans the library, tags every image that has no
@@ -23,21 +23,21 @@ and finished images are skipped the next time. Before anything is overwritten, t
 are backed up (see [Backups](#backups)).
 
 The default library is `/Users/paul/docker/immich/library/upload`. Point it elsewhere with
-`ANIMETAG_DIR=/some/path uv run animetag`, or per run with `--dir`.
+`IMMICHTAG_DIR=/some/path uv run immichtag`, or per run with `--dir`.
 
 ### Speed
 
 The command runs on the Mac's GPU in half precision at about 1.7–1.8 images/s on an M5. Re-tagging
 the full ~88k-image library takes about 14 hours, and you can spread that over several runs.
 Without the GPU it falls back to the CPU and warns you, at a fraction of the speed.
-`uv run animetag --dry-run` shows what would be tagged and an estimate, without loading the
+`uv run immichtag --dry-run` shows what would be tagged and an estimate, without loading the
 model.
 
 ### Options
 
 | Flag | Default | Purpose |
 | --- | --- | --- |
-| `--dir` | `$ANIMETAG_DIR`, else the path above | Library to tag |
+| `--dir` | `$IMMICHTAG_DIR`, else the path above | Library to tag |
 | `--dry-run` | off | Counts and time estimate, then exit |
 | `--limit N` | none | Stop after N images: a quick trial run |
 | `--overwrite` | off | Also re-tag images already tagged by the current model |
@@ -92,8 +92,8 @@ account, with these permissions:
 
 `asset.read`, `asset.update`, `job.create`, `job.read`, `tag.read`, `tag.delete`
 
-Put it in `~/.config/animetag/config.toml` and make the file readable only by you
-(`chmod 600`). animetag warns if it isn't.
+Put it in `~/.config/immichtag/config.toml` and make the file readable only by you
+(`chmod 600`). immichtag warns if it isn't.
 
 ```toml
 [immich]
@@ -103,10 +103,10 @@ api_key = "..."
 path_map = "/data=/Users/paul/docker/immich/library"
 ```
 
-The environment variables `ANIMETAG_IMMICH_URL`, `ANIMETAG_IMMICH_API_KEY` and
-`ANIMETAG_IMMICH_PATH_MAP` override the file.
+The environment variables `IMMICHTAG_URL`, `IMMICHTAG_API_KEY` and
+`IMMICHTAG_PATH_MAP` override the file.
 
-After a run, animetag does the following:
+After a run, immichtag does the following:
 
 1. It asks Immich to re-read the sidecars it wrote (and to discover the ones for new uploads).
    Immich replaces each image's tags with the sidecar's.
@@ -124,37 +124,37 @@ The cleanup is deliberately narrow:
 (Immich's own "tag cleanup" job is not used: it deletes every empty tag, yours included.)
 
 If Immich is down or no key is set, tagging still completes, and the images are remembered as
-pending. `animetag-immich` finishes the job:
+pending. `immichtag-sync` finishes the job:
 
 ```bash
-uv run animetag-immich status              # connection, permissions, what is pending
-uv run animetag-immich sync                # the pending images
-uv run animetag-immich sync --all          # every image
-uv run animetag-immich cleanup --dry-run   # show which tags would be deleted
-uv run animetag-immich cleanup
+uv run immichtag-sync status              # connection, permissions, what is pending
+uv run immichtag-sync sync                # the pending images
+uv run immichtag-sync sync --all          # every image
+uv run immichtag-sync cleanup --dry-run   # show which tags would be deleted
+uv run immichtag-sync cleanup
 ```
 
 ## Backups
 
 Before a run overwrites any sidecar, the originals go into a backup:
-`~/Library/Application Support/animetag/<library id>/backups/`. A file already in an earlier
+`~/Library/Application Support/immichtag/<library id>/backups/`. A file already in an earlier
 backup is not stored twice. For the whole WD14 library, the backup is roughly 20 MB (measured: about 240 bytes per sidecar, compressed).
 
 ```bash
-uv run animetag-backup list
-uv run animetag-backup restore 20260922T031415Z   # puts those sidecars back, byte for byte
+uv run immichtag-backup list
+uv run immichtag-backup restore 20260922T031415Z   # puts those sidecars back, byte for byte
 ```
 
 A restore first backs up the sidecars it replaces, then syncs Immich. The restored WD14 sidecars
-count as "not current", so the next `animetag` run would re-tag them again.
+count as "not current", so the next `immichtag` run would re-tag them again.
 
-## Browsing and filtering in a browser — `animetag-web`
+## Browsing and filtering in a browser — `immichtag-web`
 
 ```bash
-uv run animetag-web
+uv run immichtag-web
 ```
 
-This opens a local page (127.0.0.1:8788) with the same filtering as `animetag-filter` (below),
+This opens a local page (127.0.0.1:8788) with the same filtering as `immichtag-filter` (below),
 but you can see what you are selecting:
 
 - **Tag autocomplete** with a count next to every tag, so you know how big a selection is
@@ -168,7 +168,7 @@ but you can see what you are selecting:
 - **The output controls** (folder, max images, size limit, ordering) as fields, with a progress
   bar and a cancel button during the export.
 - **Tag** in the header shows how many images are new or still need re-tagging, and runs the
-  same tagging as `animetag`: backup, progress, time left, cancel, then the Immich sync.
+  same tagging as `immichtag`: backup, progress, time left, cancel, then the Immich sync.
   Reloading the page reattaches to a run in progress. A run from the terminal and one from the
   page can never overlap: whichever starts second is refused.
 - **Sync to Immich (N)** appears when images are pending. **Clean up Immich tags** shows exactly
@@ -182,20 +182,20 @@ when it finishes. **Rescan** does the same after tagging from the terminal.
 
 | Flag | Default | Purpose |
 | --- | --- | --- |
-| `--dir` | `$ANIMETAG_DIR`, else the library | Directory to index |
+| `--dir` | `$IMMICHTAG_DIR`, else the library | Directory to index |
 | `--port` | `8788` | Port to serve on. Left at the default, it moves to the next free port if 8788 is taken; given explicitly, it fails rather than starting somewhere you aren't looking |
 | `--host` | `127.0.0.1` | Interface to bind: loopback, i.e. this machine only |
 | `--no-browser` | off | Do not open a browser window |
 
 The server has no authentication, so leave `--host` alone unless you have a reason to expose it.
 
-## Filtering tagged images — `animetag-filter`
+## Filtering tagged images — `immichtag-filter`
 
 This program goes the other way: it reads the sidecars, picks the images whose tags you want,
 and copies them into a folder, shrinking anything over 1 MB on the way.
 
 ```bash
-uv run animetag-filter --filter "blue_hair,long_hair" --max-images 200 --out ./picked
+uv run immichtag-filter --filter "blue_hair,long_hair" --max-images 200 --out ./picked
 ```
 
 ### Filters
@@ -235,13 +235,13 @@ A `-tag` inside a `--filter` only rules that tag out of *that* group, so under `
 image can still arrive through another group. `--exclude` vetoes the combined result:
 
 ```bash
-animetag-filter -f "cat_ears" -f "character/hatsune_miku" -x "rating/explicit" -o ./picked
+immichtag-filter -f "cat_ears" -f "character/hatsune_miku" -x "rating/explicit" -o ./picked
 ```
 
 `--exclude` takes the same comma-separated lists and globs as `--filter`, is repeatable, and
 works with no `--filter` at all: `-x "rating/explicit"` alone means "everything but those".
 
-Not sure what to filter on? `uv run animetag-filter --list-tags 40` prints the most common tags
+Not sure what to filter on? `uv run immichtag-filter --list-tags 40` prints the most common tags
 in the library. Add filters to see the common tags *within* a selection.
 
 ### Options
@@ -255,7 +255,7 @@ in the library. Add filters to see the common tags *within* a selection.
 | `--max-images` / `-n` | no limit | Stop after N images |
 | `--max-size` | `1MB` | Compress anything larger; accepts `900k`, `1.5MiB`, a byte count |
 | `--no-compress` | off | Copy every image untouched, however large |
-| `--dir` | `$ANIMETAG_DIR`, else the library | Directory to scan |
+| `--dir` | `$IMMICHTAG_DIR`, else the library | Directory to scan |
 | `--order` | `scan` | Which matches `--max-images` keeps: `scan`, `random`, `newest`, `oldest` |
 | `--seed` | none | Reproducible `--order random` |
 | `--copy-sidecar` | off | Also copy each `.xmp` next to the output image |
@@ -276,9 +276,9 @@ Output names are flattened into one folder, so `a/img.jpg` and `b/img.jpg` land 
 
 ## Moving from wd14
 
-The `wd14`, `wd14-filter` and `wd14-web` commands are gone. They are now `animetag`,
-`animetag-filter` and `animetag-web`. `WD14_DIR` is no longer read (you get a one-line notice if
-it is still set); use `ANIMETAG_DIR`.
+The `wd14`, `wd14-filter` and `wd14-web` commands are gone. They are now `immichtag`,
+`immichtag-filter` and `immichtag-web`. `WD14_DIR` is no longer read (you get a one-line notice if
+it is still set); use `IMMICHTAG_DIR`.
 
 Once you are happy with the new tags, you can delete the old WD14 model (747 MB):
 
@@ -292,11 +292,11 @@ Each program is a core module with no CLI concerns, plus a thin entry point:
 
 | | Core | Entry point |
 | --- | --- | --- |
-| `animetag` | `run.py` (one tagging run), `tagger.py` (the model), `sidecar.py` (XMP read/write), `library.py` (scan, status, lock) | `cli.py` |
-| `animetag-immich` | `immich.py` (API client, sync, tag cleanup) | `immich_cli.py` |
-| `animetag-backup` | `backup.py` | `backup_cli.py` |
-| `animetag-filter` | `filterer.py` (tag matching, copy/compress) | `filter_cli.py` |
-| `animetag-web` | `web.py` (HTTP routes, jobs, thumbnails) | `web_cli.py` |
+| `immichtag` | `run.py` (one tagging run), `tagger.py` (the model), `sidecar.py` (XMP read/write), `library.py` (scan, status, lock) | `cli.py` |
+| `immichtag-sync` | `immich.py` (API client, sync, tag cleanup) | `immich_cli.py` |
+| `immichtag-backup` | `backup.py` | `backup_cli.py` |
+| `immichtag-filter` | `filterer.py` (tag matching, copy/compress) | `filter_cli.py` |
+| `immichtag-web` | `web.py` (HTTP routes, jobs, thumbnails) | `web_cli.py` |
 
 Other modules:
 

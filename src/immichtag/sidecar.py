@@ -17,14 +17,14 @@ from typing import Iterable, List, Sequence
 
 from lxml import etree
 
-from animetag import vocab
+from immichtag import vocab
 
 RDF = "http://www.w3.org/1999/02/22-rdf-syntax-ns#"
 DIGIKAM = "http://www.digikam.org/ns/1.0/"
 LR = "http://ns.adobe.com/lightroom/1.0/"
 DC = "http://purl.org/dc/elements/1.1/"
-ANIMETAG = "http://ns.animetag.local/1.0/"
-NSMAP = {"x": "adobe:ns:meta/", "rdf": RDF, "animetag": ANIMETAG, "digiKam": DIGIKAM, "lr": LR, "dc": DC}
+IMMICHTAG = "http://ns.immichtag.local/1.0/"
+NSMAP = {"x": "adobe:ns:meta/", "rdf": RDF, "immichtag": IMMICHTAG, "digiKam": DIGIKAM, "lr": LR, "dc": DC}
 
 #: Where tags are read from, in Immich's own order of precedence (`getTagList`): Immich
 #: rewrites only TagsList when a user edits tags, so the other two can be stale.
@@ -32,14 +32,14 @@ TAG_PROPERTIES = ((DIGIKAM, "TagsList"), (LR, "HierarchicalSubject"), (DC, "subj
 PROVENANCE_FIELDS = ("model", "revision", "profile", "taggedAt")
 
 #: Suffix of the temporary file a write goes through; a run removes strays on start.
-TMP_SUFFIX = ".animetag-tmp"
+TMP_SUFFIX = ".immichtag-tmp"
 
 # Fast path for files this tool wrote itself, which are uniform. Over a 100k-image
 # library a regex is many times faster than an XML parse; anything else — notably files
 # exiftool rewrote for Immich — goes through lxml.
 _FAST_TAGSLIST = re.compile(rb"<digiKam:TagsList>\s*<rdf:(?:Seq|Bag)>(.*?)</rdf:(?:Seq|Bag)>", re.DOTALL)
 _FAST_LI = re.compile(rb"<rdf:li>(.*?)</rdf:li>", re.DOTALL)
-_FAST_PROV = re.compile(rb'animetag:(model|revision|profile|taggedAt)="([^"]*)"')
+_FAST_PROV = re.compile(rb'immichtag:(model|revision|profile|taggedAt)="([^"]*)"')
 
 
 @dataclass(frozen=True)
@@ -108,12 +108,12 @@ def _read_xml(data: bytes) -> SidecarData:
     fields: dict = {}
     for element in root.iter(f"{{{RDF}}}Description"):
         for name in PROVENANCE_FIELDS:
-            value = element.get(f"{{{ANIMETAG}}}{name}")
+            value = element.get(f"{{{IMMICHTAG}}}{name}")
             if value is not None:
                 fields.setdefault(name, value)
     for name in PROVENANCE_FIELDS:
         if name not in fields:
-            element = next(root.iter(f"{{{ANIMETAG}}}{name}"), None)
+            element = next(root.iter(f"{{{IMMICHTAG}}}{name}"), None)
             if element is not None and element.text:
                 fields[name] = element.text.strip()
     return SidecarData(tags=_dedupe(tags), provenance=_provenance(fields))
@@ -147,14 +147,14 @@ def build_xmp(tags: Sequence[str], provenance: Provenance | None) -> bytes:
     rdf = etree.SubElement(xmpmeta, f"{{{RDF}}}RDF", nsmap={"rdf": RDF})
     desc = etree.SubElement(
         rdf, f"{{{RDF}}}Description",
-        nsmap={"animetag": ANIMETAG, "digiKam": DIGIKAM, "lr": LR, "dc": DC},
+        nsmap={"immichtag": IMMICHTAG, "digiKam": DIGIKAM, "lr": LR, "dc": DC},
     )
     desc.set(f"{{{RDF}}}about", "")
     if provenance is not None:
-        desc.set(f"{{{ANIMETAG}}}model", provenance.model)
-        desc.set(f"{{{ANIMETAG}}}revision", provenance.revision)
-        desc.set(f"{{{ANIMETAG}}}profile", provenance.profile)
-        desc.set(f"{{{ANIMETAG}}}taggedAt", provenance.tagged_at)
+        desc.set(f"{{{IMMICHTAG}}}model", provenance.model)
+        desc.set(f"{{{IMMICHTAG}}}revision", provenance.revision)
+        desc.set(f"{{{IMMICHTAG}}}profile", provenance.profile)
+        desc.set(f"{{{IMMICHTAG}}}taggedAt", provenance.tagged_at)
 
     values = _dedupe(tags)
     for (namespace, local), kind in zip(TAG_PROPERTIES, ("Seq", "Bag", "Bag")):

@@ -7,9 +7,9 @@ import numpy as np
 import pytest
 from PIL import Image
 
-from animetag import backup, library, sidecar
-from animetag.run import RunOptions, TaggingRun
-from animetag.tagger import MODEL_REPO, MODEL_REVISION
+from immichtag import backup, library, sidecar
+from immichtag.run import RunOptions, TaggingRun
+from immichtag.tagger import MODEL_REPO, MODEL_REVISION
 
 NAMES = ["long_hair", "hatsune_miku", "vocaloid", "official_art", "tony_taka",
          "rating:g", "rating:s", "rating:q", "rating:e"]
@@ -49,7 +49,7 @@ def library_dir(tmp_path, fixtures_dir):
     shutil.copy(fixtures_dir / "immich_rewritten.xmp", folder / "c_legacy.jpg.xmp")
     # make c legacy (strip provenance) but keep its foreign tag my_album/trip
     text = (folder / "c_legacy.jpg.xmp").read_text(encoding="utf-8")
-    text = text.replace("animetag:model", "other:model").replace("animetag:revision", "other:revision")
+    text = text.replace("immichtag:model", "other:model").replace("immichtag:revision", "other:revision")
     (folder / "c_legacy.jpg.xmp").write_text(text, encoding="utf-8")
     return root
 
@@ -118,7 +118,7 @@ def test_cancel_then_resume(library_dir):
         assert data.error is None
         if path in before and path.read_bytes() != before[path]:
             assert data.provenance and data.provenance.model == MODEL_REPO
-    assert not list(library_dir.rglob("*animetag-tmp"))
+    assert not list(library_dir.rglob("*immichtag-tmp"))
 
     stub2 = StubTagger()
     _, resumed = _run(library_dir, stub2)

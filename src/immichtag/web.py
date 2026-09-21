@@ -1,12 +1,12 @@
 """A local web UI for the tag filter.
 
-`uv run animetag-web` builds the sidecar index once, serves a page on 127.0.0.1 and opens
+`uv run immichtag-web` builds the sidecar index once, serves a page on 127.0.0.1 and opens
 it. Everything the CLI takes as flags is a control on that page, plus the two things a
 terminal cannot give you: thumbnails of what a filter actually selects, and a match
 count that updates as you type.
 
 The page can also run the tagger (PixAI Tagger v1.0) — the same selection and thresholds
-as `uv run animetag`: new images first, then any whose sidecar another model wrote — and
+as `uv run immichtag`: new images first, then any whose sidecar another model wrote — and
 rebuilds the index when it is done, so new uploads go from untagged to filterable without
 a terminal. It can sync the result into Immich and remove the tags nothing uses.
 
@@ -33,8 +33,8 @@ from urllib.parse import parse_qs, urlparse
 
 from PIL import Image
 
-from animetag import config, filterer, immich, library, run, sidecar, vocab
-from animetag.index import IndexHolder, LibraryIndex
+from immichtag import config, filterer, immich, library, run, sidecar, vocab
+from immichtag.index import IndexHolder, LibraryIndex
 
 STATIC_DIR = Path(__file__).parent / "web"
 #: Nothing well-known lives here. Still collidable, which is why serve() can move.
@@ -497,7 +497,7 @@ class AppState:
 
 def make_handler(state: AppState) -> type:
     class Handler(BaseHTTPRequestHandler):
-        server_version = "animetag-web"
+        server_version = "immichtag-web"
         protocol_version = "HTTP/1.1"
 
         # -- plumbing --------------------------------------------------------
@@ -677,11 +677,11 @@ def bind(host: str, port: int, handler: type, search: int = 0) -> ThreadingHTTPS
     if search:
         raise SystemExit(
             f"Ports {port}-{port + search} on {host} are all in use{detail}.\n"
-            f"Free one, or pick another with:  uv run animetag-web --port 9000"
+            f"Free one, or pick another with:  uv run immichtag-web --port 9000"
         )
     raise SystemExit(
         f"Port {port} on {host} is already in use{detail}.\n"
-        f"Pick another with:  uv run animetag-web --port {port + 1}"
+        f"Pick another with:  uv run immichtag-web --port {port + 1}"
     )
 
 
@@ -699,7 +699,7 @@ def serve(
     if httpd.server_address[1] != port:
         print(f"Port {port} was busy, using {httpd.server_address[1]} instead.")
     url = f"http://{host}:{httpd.server_address[1]}/"
-    print(f"animetag-web serving {root}")
+    print(f"immichtag-web serving {root}")
     print(f"  {url}   (ctrl-c to stop)")
 
     if open_browser:

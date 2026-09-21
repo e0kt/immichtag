@@ -1,6 +1,6 @@
 """Where things live: the library root, the Immich settings, and per-library state.
 
-Every entry point resolves the library root here, so `--dir`, `ANIMETAG_DIR` and the
+Every entry point resolves the library root here, so `--dir`, `IMMICHTAG_DIR` and the
 default mean the same thing in the tagger, the filter and the web UI.
 """
 
@@ -13,7 +13,7 @@ import tomllib
 from dataclasses import dataclass
 from pathlib import Path
 
-#: Scanned when neither --dir nor ANIMETAG_DIR is given: Immich's upload tree.
+#: Scanned when neither --dir nor IMMICHTAG_DIR is given: Immich's upload tree.
 DEFAULT_ROOT = Path("/Users/paul/docker/immich/library/upload")
 DEFAULT_IMMICH_URL = "http://127.0.0.1:2283"
 
@@ -21,10 +21,10 @@ _WD14_NOTICE_SHOWN = False
 
 
 def resolve_root(cli_dir: str | None) -> Path:
-    """`--dir`, else `$ANIMETAG_DIR`, else the Immich upload tree."""
+    """`--dir`, else `$IMMICHTAG_DIR`, else the Immich upload tree."""
     if cli_dir:
         return Path(cli_dir).expanduser().resolve()
-    env = os.environ.get("ANIMETAG_DIR")
+    env = os.environ.get("IMMICHTAG_DIR")
     if env:
         return Path(env).expanduser().resolve()
     if os.environ.get("WD14_DIR"):
@@ -38,7 +38,7 @@ def _wd14_notice() -> None:
     global _WD14_NOTICE_SHOWN
     if not _WD14_NOTICE_SHOWN:
         _WD14_NOTICE_SHOWN = True
-        print("note: WD14_DIR is no longer read; set ANIMETAG_DIR instead", file=sys.stderr)
+        print("note: WD14_DIR is no longer read; set IMMICHTAG_DIR instead", file=sys.stderr)
 
 
 def library_id(root: Path) -> str:
@@ -47,13 +47,13 @@ def library_id(root: Path) -> str:
 
 
 def _state_base() -> Path:
-    override = os.environ.get("ANIMETAG_STATE_DIR")
+    override = os.environ.get("IMMICHTAG_STATE_DIR")
     if override:
         return Path(override).expanduser()
     if sys.platform == "darwin":
-        return Path.home() / "Library" / "Application Support" / "animetag"
+        return Path.home() / "Library" / "Application Support" / "immichtag"
     xdg = os.environ.get("XDG_STATE_HOME")
-    return (Path(xdg) if xdg else Path.home() / ".local" / "state") / "animetag"
+    return (Path(xdg) if xdg else Path.home() / ".local" / "state") / "immichtag"
 
 
 def state_dir(root: Path) -> Path:
@@ -65,10 +65,10 @@ def state_dir(root: Path) -> Path:
 
 
 def config_path() -> Path:
-    override = os.environ.get("ANIMETAG_CONFIG")
+    override = os.environ.get("IMMICHTAG_CONFIG")
     if override:
         return Path(override).expanduser()
-    return Path.home() / ".config" / "animetag" / "config.toml"
+    return Path.home() / ".config" / "immichtag" / "config.toml"
 
 
 @dataclass(frozen=True)
@@ -90,7 +90,7 @@ class ImmichSettings:
 
 
 def load_immich_settings() -> ImmichSettings:
-    """`config.toml`'s [immich] table, each value overridable by ANIMETAG_IMMICH_*."""
+    """`config.toml`'s [immich] table, each value overridable by IMMICHTAG_*."""
     path = config_path()
     table: dict = {}
     if path.is_file():
@@ -107,7 +107,7 @@ def load_immich_settings() -> ImmichSettings:
         return str(value).strip() if value else None
 
     return ImmichSettings(
-        url=(pick("ANIMETAG_IMMICH_URL", "url", DEFAULT_IMMICH_URL) or DEFAULT_IMMICH_URL).rstrip("/"),
-        api_key=pick("ANIMETAG_IMMICH_API_KEY", "api_key"),
-        path_map=pick("ANIMETAG_IMMICH_PATH_MAP", "path_map"),
+        url=(pick("IMMICHTAG_URL", "url", DEFAULT_IMMICH_URL) or DEFAULT_IMMICH_URL).rstrip("/"),
+        api_key=pick("IMMICHTAG_API_KEY", "api_key"),
+        path_map=pick("IMMICHTAG_PATH_MAP", "path_map"),
     )

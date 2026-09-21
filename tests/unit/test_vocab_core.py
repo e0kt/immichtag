@@ -1,4 +1,4 @@
-from animetag import vocab
+from immichtag import vocab
 
 
 def test_escape_round_trip():

@@ -3,11 +3,11 @@
 <rdf:RDF xmlns:rdf='http://www.w3.org/1999/02/22-rdf-syntax-ns#'>
 
  <rdf:Description rdf:about=''
-  xmlns:animetag='http://ns.animetag.local/1.0/'>
-  <animetag:model>pixai-labs/pixai-tagger-v1.0</animetag:model>
-  <animetag:profile>v1</animetag:profile>
-  <animetag:revision>f33cfdb53c0c90b049bab9ce066eea1118970ef8</animetag:revision>
-  <animetag:taggedAt>2026-09-22T03:14:15Z</animetag:taggedAt>
+  xmlns:immichtag='http://ns.immichtag.local/1.0/'>
+  <immichtag:model>pixai-labs/pixai-tagger-v1.0</immichtag:model>
+  <immichtag:profile>v1</immichtag:profile>
+  <immichtag:revision>f33cfdb53c0c90b049bab9ce066eea1118970ef8</immichtag:revision>
+  <immichtag:taggedAt>2026-09-22T03:14:15Z</immichtag:taggedAt>
  </rdf:Description>
 
  <rdf:Description rdf:about=''

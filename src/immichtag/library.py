@@ -16,7 +16,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Dict, Iterable, Iterator, List, Tuple
 
-from animetag import sidecar
+from immichtag import sidecar
 
 IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".webp", ".bmp", ".avif"}
 #: Immich's own folders next to the uploads, plus the usual noise.
@@ -101,7 +101,7 @@ def _now() -> str:
 
 class PendingSync:
     """Sidecars written but not yet re-read by Immich, so a failed or skipped sync can be
-    finished later by `animetag-immich sync`. Paths are relative to the library root."""
+    finished later by `immichtag-sync sync`. Paths are relative to the library root."""
 
     FILENAME = "pending-sync.jsonl"
 

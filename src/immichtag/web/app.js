@@ -796,7 +796,7 @@ async function startImmichSync() {
 }
 
 async function previewCleanup() {
-  immichPanel('Finding the empty tags animetag manages in Immich…');
+  immichPanel('Finding the empty tags immichtag manages in Immich…');
   immichActions([{ label: 'Cancel', onclick: () => { $('immich-panel').hidden = true; } }]);
   let preview;
   try {

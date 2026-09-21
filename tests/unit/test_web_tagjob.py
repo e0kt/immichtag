@@ -5,7 +5,7 @@ import time
 
 import pytest
 
-from animetag import library, web
+from immichtag import library, web
 
 from .test_run import StubTagger
 

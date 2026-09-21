@@ -13,7 +13,7 @@ import argparse
 import random
 import sys
 
-from animetag import config, immich, library, sidecar
+from immichtag import config, immich, library, sidecar
 
 
 def main() -> int:

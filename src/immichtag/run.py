@@ -1,4 +1,4 @@
-"""One tagging run, shared by `animetag` and the web UI's Tag button.
+"""One tagging run, shared by `immichtag` and the web UI's Tag button.
 
 scan -> lock -> back up what will be overwritten -> load the model -> tag, one sidecar
 at a time -> hand the written images to the Immich sync.
@@ -18,7 +18,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Dict, List
 
-from animetag import backup, config, library, sidecar, tagger, vocab
+from immichtag import backup, config, library, sidecar, tagger, vocab
 
 
 @dataclass
@@ -71,7 +71,7 @@ def immich_sync_hook(root: Path, state_dir: Path) -> Callable[[RunProgress], Any
         return None
 
     def hook(progress: RunProgress):
-        from animetag import immich  # tagging itself never needs Immich
+        from immichtag import immich  # tagging itself never needs Immich
 
         return immich.sync(root, settings, state_dir)
 

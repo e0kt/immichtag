@@ -14,7 +14,7 @@ import statistics
 import time
 from pathlib import Path
 
-from animetag import config, library, tagger
+from immichtag import config, library, tagger
 
 
 def main() -> int:

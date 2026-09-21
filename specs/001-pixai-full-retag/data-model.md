@@ -37,7 +37,7 @@ A file under the library root with an extension in `IMAGE_EXTS` (`.jpg .jpeg .pn
 | Field | Type | Source | Notes |
 |---|---|---|---|
 | `tags` | ordered list of Tag | `digiKam:TagsList` (fallback: `lr:HierarchicalSubject`, then `dc:subject`) | Deduplicated, order preserved |
-| `provenance` | Provenance or none | `animetag:*` attributes **or** child elements | None ⇒ LEGACY |
+| `provenance` | Provenance or none | `immichtag:*` attributes **or** child elements | None ⇒ LEGACY |
 | `foreign_tags` | list of Tag | derived | Tags whose first segment is not a managed prefix; preserved across re-tags (FR-009) |
 
 **Validation on write:**
@@ -140,7 +140,7 @@ scanning → locking ─(lock busy)→ refused
 - `path` is relative to the library root.
 - `had_sidecar: false` means the image was NEW, which makes Immich sidecar discovery necessary.
 - When a sync succeeds, the file is rewritten without the entries it covered.
-- `animetag-immich sync` with no arguments processes this file; `--all` ignores it and covers the whole library.
+- `immichtag-sync sync` with no arguments processes this file; `--all` ignores it and covers the whole library.
 
 ---
 

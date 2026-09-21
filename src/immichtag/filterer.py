@@ -1,6 +1,6 @@
 """Core selection logic for the tag filter: read sidecars, match tags, copy/compress.
 
-No CLI concerns here — argument parsing and the run loop live in animetag.filter_cli.
+No CLI concerns here — argument parsing and the run loop live in immichtag.filter_cli.
 """
 
 from __future__ import annotations
@@ -16,10 +16,10 @@ from typing import Dict, Iterable, Iterator, List, Sequence, Tuple
 
 from PIL import Image
 
-from animetag import library, vocab
-from animetag import sidecar as sidecar_io
-from animetag.library import IMAGE_EXTS, SKIP_DIRS
-from animetag.vocab import is_glob, leaf_of, normalize, split_tag
+from immichtag import library, vocab
+from immichtag import sidecar as sidecar_io
+from immichtag.library import IMAGE_EXTS, SKIP_DIRS
+from immichtag.vocab import is_glob, leaf_of, normalize, split_tag
 
 #: A filter is a group of tag patterns, so this caps the groups, not the tags in them.
 MAX_FILTERS = 10

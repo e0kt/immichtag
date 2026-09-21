@@ -73,7 +73,7 @@ The CLI keeps `--general-threshold`, `--character-threshold` and `--parody-thres
 
 **Decision** (tested against Immich's own exiftool 13.59 inside the container):
 
-- **Provenance** goes in a custom XMP namespace `http://ns.animetag.local/1.0/` (prefix `animetag`), with `model`, `revision`, `profile` and `taggedAt`. It is written as attributes on `rdf:Description`.
+- **Provenance** goes in a custom XMP namespace `http://ns.immichtag.local/1.0/` (prefix `immichtag`), with `model`, `revision`, `profile` and `taggedAt`. It is written as attributes on `rdf:Description`.
   - Verified: when Immich rewrites a sidecar (its `SidecarWrite` job, triggered when the user edits tags in Immich), exiftool **keeps** the namespace but turns the attributes into child elements. The reader must accept both forms.
 - **"Current" check**: a sidecar is current when `model` and `revision` equal the running tagger's. `profile` is informational only, so a run with custom thresholds is not undone by a later default run. A sidecar with no provenance is **legacy**; every WD14 sidecar falls into this group.
 - **`digiKam:TagsList` is the source of truth**, written as `rdf:Seq`.
@@ -84,7 +84,7 @@ The CLI keeps `--general-threshold`, `--character-threshold` and `--parody-thres
   - Verified: after an Immich rewrite, the file contains `dc:description/rdf:Alt/rdf:li`, which the current parser would read as a tag.
   - The new parser only reads `rdf:li` inside the three tag properties. The regex fast path is kept for files we wrote ourselves, recognized by the provenance attribute form; anything else goes through lxml.
 - **Foreign tags are preserved (FR-009)**: on re-tag, the new sidecar's tag list is our managed tags plus every existing tag whose top-level segment is not a managed prefix.
-- **Atomic write (FR-006)**: write `.<name>.xmp.animetag-tmp` in the same directory, `fsync`, then `os.replace`. Stray temp files from a killed run are removed at the next run's start. Scans ignore them, because they end in `-tmp` and not `.xmp`.
+- **Atomic write (FR-006)**: write `.<name>.xmp.immichtag-tmp` in the same directory, `fsync`, then `os.replace`. Stray temp files from a killed run are removed at the next run's start. Scans ignore them, because they end in `-tmp` and not `.xmp`.
 
 **Alternatives considered**: Tracking provenance in a separate database instead of the sidecar was rejected: it would drift from the files, and the sidecar already travels with exports (FR-025).
 
@@ -142,7 +142,7 @@ Everything else in the 145-tag meta category is dropped. That includes resolutio
 3. Poll `GET /api/jobs` until the `sidecar` and `metadataExtraction` queues are idle.
 4. Run tag cleanup (R9).
 
-`animetag-immich sync --all` does the same for every image. The 13-hour re-tag syncs incrementally at the end of each run, so an interrupted run's work is still synced.
+`immichtag-sync sync --all` does the same for every image. The 13-hour re-tag syncs incrementally at the end of each run, so an interrupted run's work is still synced.
 
 If the deprecated endpoint disappears in a future Immich version (HTTP 404), the tool reports "discovery needed: Immich → Administration → Jobs → Sidecar metadata → Discover" and continues. Refresh still covers every asset whose sidecar Immich already knows, which is all 87,755 existing ones.
 
@@ -182,7 +182,7 @@ If the deprecated endpoint disappears in a future Immich version (HTTP 404), the
 
 **Decision**: Before the first overwrite in a run, write `backups/<UTC timestamp>.tar.gz` into the state directory (R12). It contains every sidecar the run is about to overwrite, byte for byte, with archive paths relative to the library root. A `manifest.jsonl` records each file's path, size, mtime and SHA-256.
 - A file is skipped when the same **(path, SHA-256)** pair is already in an earlier backup, so resuming an interrupted re-tag does not re-archive the same legacy files. The key must include the path: two images can have byte-identical sidecars (same WD14 tag list), and keying on content alone would leave the second one restorable from no backup. This was found during implementation.
-- `animetag-backup list` shows the backups. `animetag-backup restore <id> [--dry-run]` writes the files back atomically (R5), then marks them pending for Immich sync.
+- `immichtag-backup list` shows the backups. `immichtag-backup restore <id> [--dry-run]` writes the files back atomically (R5), then marks them pending for Immich sync.
 
 **Sizing**: The average sidecar is 4.6 KB (2,000 sampled), so the full library is about 405 MB raw. XML with a repetitive vocabulary compresses about 10×, so roughly 40 MB.
 
@@ -201,9 +201,9 @@ If the deprecated endpoint disappears in a future Immich version (HTTP 404), the
 **Decision**:
 
 - **Library root**:
-  - Resolution order: `--dir`, then `ANIMETAG_DIR`, then `/Users/paul/docker/immich/library/upload`.
-  - `WD14_DIR` no longer has any effect. If it is set and `ANIMETAG_DIR` is not, a one-line notice is printed per run (FR-029).
-- **Immich settings**: `~/.config/animetag/config.toml`, parsed with `tomllib`:
+  - Resolution order: `--dir`, then `IMMICHTAG_DIR`, then `/Users/paul/docker/immich/library/upload`.
+  - `WD14_DIR` no longer has any effect. If it is set and `IMMICHTAG_DIR` is not, a one-line notice is printed per run (FR-029).
+- **Immich settings**: `~/.config/immichtag/config.toml`, parsed with `tomllib`:
 
   ```toml
   [immich]
@@ -212,10 +212,10 @@ If the deprecated endpoint disappears in a future Immich version (HTTP 404), the
   path_map = "/data=/Users/paul/docker/immich/library"
   ```
 
-  - Environment variables `ANIMETAG_IMMICH_URL`, `ANIMETAG_IMMICH_API_KEY` and `ANIMETAG_IMMICH_PATH_MAP` override the file.
+  - Environment variables `IMMICHTAG_URL`, `IMMICHTAG_API_KEY` and `IMMICHTAG_PATH_MAP` override the file.
   - The key is never printed or logged. The file should be mode 0600, and the tool warns if it is group- or world-readable.
 - **State directory**:
-  - macOS: `~/Library/Application Support/animetag/<library id>/`; elsewhere: `$XDG_STATE_HOME/animetag/<library id>/`.
+  - macOS: `~/Library/Application Support/immichtag/<library id>/`; elsewhere: `$XDG_STATE_HOME/immichtag/<library id>/`.
   - `<library id>` is the first 12 hex digits of the SHA-256 of the resolved root path.
   - It holds `tagging.lock`, `pending-sync.jsonl` and `backups/`.
 - **Required Immich API key permissions**: `asset.read`, `asset.update`, `job.create`, `job.read`, `tag.read` and `tag.delete`, on an admin user. The library has exactly one user.
@@ -237,11 +237,11 @@ Suggestions come from `difflib.get_close_matches` over the names, plus substring
 ## R14. Renaming (FR-028)
 
 **Decision**:
-- The Python package `wd14` → `animetag` (`src/animetag/`).
+- The Python package `wd14` → `immichtag` (`src/immichtag/`).
 - Console scripts:
-  - `animetag`, `animetag-filter` and `animetag-web`, which replace the three existing commands
-  - new `animetag-immich` and `animetag-backup`
-- `pyproject.toml` `name = "animetag"`; the web page title becomes "animetag"; the README is rewritten.
+  - `immichtag`, `immichtag-filter` and `immichtag-web`, which replace the three existing commands
+  - new `immichtag-sync` and `immichtag-backup`
+- `pyproject.toml` `name = "immichtag"`; the web page title becomes "immichtag"; the README is rewritten.
 - No `wd14*` scripts, modules or aliases remain.
 - The repository directory (`~/programming/wd14`) is not renamed, because that is outside the project's control.
 - The existing `~/.cache/huggingface` WD14 model (747 MB) is not deleted automatically; the README tells the user how to remove it.

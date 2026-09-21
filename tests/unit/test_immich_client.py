@@ -2,8 +2,8 @@ import logging
 
 import pytest
 
-from animetag import immich
-from animetag.config import ImmichSettings
+from immichtag import immich
+from immichtag.config import ImmichSettings
 
 from .fake_immich import API_KEY, FakeImmich
 

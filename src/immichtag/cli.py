@@ -1,4 +1,4 @@
-"""`animetag` — tag new images and re-tag everything not written by the current model.
+"""`immichtag` — tag new images and re-tag everything not written by the current model.
 
 With no arguments it takes every image that has no sidecar (new uploads, first) and
 every image whose sidecar came from another model — WD14's included — and writes fresh
@@ -14,7 +14,7 @@ import threading
 
 from tqdm import tqdm
 
-from animetag import config, filterer, library, run, tagger, vocab
+from immichtag import config, filterer, library, run, tagger, vocab
 
 EXIT_OK, EXIT_ALL_FAILED, EXIT_USAGE, EXIT_LOCKED, EXIT_INTERRUPTED = 0, 1, 2, 3, 130
 
@@ -22,7 +22,7 @@ EXIT_OK, EXIT_ALL_FAILED, EXIT_USAGE, EXIT_LOCKED, EXIT_INTERRUPTED = 0, 1, 2, 3
 def build_parser() -> argparse.ArgumentParser:
     t = vocab.DEFAULT_THRESHOLDS
     parser = argparse.ArgumentParser(
-        prog="animetag",
+        prog="immichtag",
         description=(
             "Tag anime images with PixAI Tagger v1.0 into Immich-compatible XMP sidecars. "
             "With no arguments, tags every new image and re-tags every image whose sidecar "
@@ -30,7 +30,7 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument("--dir", default=None,
-                        help=f"Library to tag (default: $ANIMETAG_DIR, else {config.DEFAULT_ROOT})")
+                        help=f"Library to tag (default: $IMMICHTAG_DIR, else {config.DEFAULT_ROOT})")
     parser.add_argument("--dry-run", action="store_true",
                         help="Report what would be tagged and how long it would take, then exit")
     parser.add_argument("--limit", type=int, default=None, help="Stop after this many images")
@@ -49,7 +49,7 @@ def build_parser() -> argparse.ArgumentParser:
                         help="auto = the Apple GPU when available")
     parser.add_argument("--no-immich", action="store_true",
                         help="Do not sync to Immich afterwards; the images stay pending for "
-                             "`animetag-immich sync`")
+                             "`immichtag-sync sync`")
     return parser
 
 
@@ -89,7 +89,7 @@ def print_sync_result(result, pending_count: int) -> None:
     if result is None:
         if pending_count:
             print(f"Immich sync pending ({pending_count} images): no Immich API key configured. "
-                  "Run: animetag-immich sync")
+                  "Run: immichtag-sync sync")
         return
     ok = getattr(result, "ok", None)
     if ok is None and isinstance(result, dict):
@@ -101,7 +101,7 @@ def print_sync_result(result, pending_count: int) -> None:
             print(f"Immich: {result.reason}")
     else:
         reason = getattr(result, "reason", None) or (result.get("reason") if isinstance(result, dict) else "")
-        print(f"Immich sync pending ({pending_count} images): {reason}. Run: animetag-immich sync")
+        print(f"Immich sync pending ({pending_count} images): {reason}. Run: immichtag-sync sync")
 
 
 def main() -> int:
@@ -203,7 +203,7 @@ def main() -> int:
     if options.immich:
         print_sync_result(progress.sync, pending)
     elif pending:
-        print(f"Immich sync pending ({pending} images): skipped by --no-immich. Run: animetag-immich sync")
+        print(f"Immich sync pending ({pending} images): skipped by --no-immich. Run: immichtag-sync sync")
 
     if progress.state == "cancelled":
         return EXIT_INTERRUPTED

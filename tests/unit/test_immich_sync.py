@@ -3,8 +3,8 @@ from pathlib import Path
 
 import pytest
 
-from animetag import immich, library, sidecar
-from animetag.config import ImmichSettings
+from immichtag import immich, library, sidecar
+from immichtag.config import ImmichSettings
 
 from .fake_immich import API_KEY, FakeImmich
 

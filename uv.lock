@@ -7,46 +7,6 @@ resolution-markers = [
 ]
 
 [[package]]
-name = "animetag"
-version = "0.2.0"
-source = { editable = "." }
-dependencies = [
-    { name = "huggingface-hub" },
-    { name = "lxml" },
-    { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
-    { name = "numpy", version = "2.5.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
-    { name = "pillow" },
-    { name = "safetensors" },
-    { name = "timm" },
-    { name = "torch" },
-    { name = "torchvision" },
-    { name = "tqdm" },
-    { name = "transformers" },
-]
-
-[package.dev-dependencies]
-dev = [
-    { name = "pytest" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "huggingface-hub", specifier = ">=0.24" },
-    { name = "lxml", specifier = ">=5.0" },
-    { name = "numpy", specifier = ">=1.24" },
-    { name = "pillow", specifier = ">=10.0" },
-    { name = "safetensors", specifier = ">=0.4" },
-    { name = "timm", specifier = ">=1.0" },
-    { name = "torch", specifier = ">=2.4" },
-    { name = "torchvision", specifier = ">=0.19" },
-    { name = "tqdm", specifier = ">=4.66" },
-    { name = "transformers", specifier = ">=4.46" },
-]
-
-[package.metadata.requires-dev]
-dev = [{ name = "pytest", specifier = ">=8" }]
-
-[[package]]
 name = "annotated-doc"
 version = "0.0.5"
 source = { registry = "https://pypi.org/simple" }
@@ -267,6 +227,46 @@ sdist = { url = "https://files.pythonhosted.org/packages/5f/f7/abb373e5757eaec4b
 wheels = [
     { url = "https://files.pythonhosted.org/packages/57/b0/0e52c878c53f245edd3a11020f20979b3f490f245af532c7cae3027754b5/idna-3.19-py3-none-any.whl", hash = "sha256:815e7be7a7806d54abb586dc943addc79e8b2ee16915059658cbeff4b1b43bf4", size = 68550, upload-time = "2026-08-18T05:14:22.343Z" },
 ]
+
+[[package]]
+name = "immichtag"
+version = "0.2.0"
+source = { editable = "." }
+dependencies = [
+    { name = "huggingface-hub" },
+    { name = "lxml" },
+    { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
+    { name = "numpy", version = "2.5.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
+    { name = "pillow" },
+    { name = "safetensors" },
+    { name = "timm" },
+    { name = "torch" },
+    { name = "torchvision" },
+    { name = "tqdm" },
+    { name = "transformers" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "pytest" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "huggingface-hub", specifier = ">=0.24" },
+    { name = "lxml", specifier = ">=5.0" },
+    { name = "numpy", specifier = ">=1.24" },
+    { name = "pillow", specifier = ">=10.0" },
+    { name = "safetensors", specifier = ">=0.4" },
+    { name = "timm", specifier = ">=1.0" },
+    { name = "torch", specifier = ">=2.4" },
+    { name = "torchvision", specifier = ">=0.19" },
+    { name = "tqdm", specifier = ">=4.66" },
+    { name = "transformers", specifier = ">=4.46" },
+]
+
+[package.metadata.requires-dev]
+dev = [{ name = "pytest", specifier = ">=8" }]
 
 [[package]]
 name = "iniconfig"

@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 import torch
 
-from animetag import tagger
+from immichtag import tagger
 
 pytestmark = pytest.mark.integration
 

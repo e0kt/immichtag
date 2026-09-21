@@ -1,6 +1,6 @@
 import pytest
 
-from animetag import vocab
+from immichtag import vocab
 
 MODEL = {
     "blunt_bangs": ("general", "tag"),

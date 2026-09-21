@@ -28,10 +28,10 @@ description: "Task list for 001-pixai-full-retag"
 - **Default thresholds**: general 0.34 · character 0.37 · copyright→`parody` 0.46 · meta 0.47 · rating argmax · style not written
 - **Managed prefixes**: `character, parody, tag, meta, rating`. The legacy pipe form `character|…` / `tag|…` counts as managed for Immich cleanup only.
 - **Name escape**: a `/` inside a managed tag's name is written as `∕` (U+2215)
-- **Provenance**: XMP namespace `http://ns.animetag.local/1.0/`, prefix `animetag`, fields `model`, `revision`, `profile`, `taggedAt`
+- **Provenance**: XMP namespace `http://ns.immichtag.local/1.0/`, prefix `immichtag`, fields `model`, `revision`, `profile`, `taggedAt`
 - **Paths**:
-  - State dir: `~/Library/Application Support/animetag/<library id>/` on macOS, `$XDG_STATE_HOME/animetag/<id>/` elsewhere, where `<id>` = first 12 hex digits of the SHA-256 of the resolved root
-  - Config: `~/.config/animetag/config.toml`
+  - State dir: `~/Library/Application Support/immichtag/<library id>/` on macOS, `$XDG_STATE_HOME/immichtag/<id>/` elsewhere, where `<id>` = first 12 hex digits of the SHA-256 of the resolved root
+  - Config: `~/.config/immichtag/config.toml`
 
 ---
 
@@ -41,16 +41,16 @@ description: "Task list for 001-pixai-full-retag"
 
 - [X] T001 Initialize git in `/Users/paul/programming/wd14`:
   - Add `.pytest_cache/` and `*.egg-info/` to `.gitignore`.
-  - Run `git init && git add -A && git commit -m "Baseline before animetag migration"`, so the rename and every later change can be reviewed and reverted.
-- [X] T002 Move the package `src/wd14/` → `src/animetag/` (`git mv`) and delete `src/animetag/__pycache__/`.
-  - Replace every `wd14` module reference in `src/animetag/*.py` (`from wd14 import …`, `from wd14.x import …`, `wd14.cli`) with `animetag`.
-  - Rewrite the docstrings in `src/animetag/__init__.py` ("animetag — anime image tagger → Immich-compatible XMP sidecars") and `src/animetag/__main__.py`.
+  - Run `git init && git add -A && git commit -m "Baseline before immichtag migration"`, so the rename and every later change can be reviewed and reverted.
+- [X] T002 Move the package `src/wd14/` → `src/immichtag/` (`git mv`) and delete `src/immichtag/__pycache__/`.
+  - Replace every `wd14` module reference in `src/immichtag/*.py` (`from wd14 import …`, `from wd14.x import …`, `wd14.cli`) with `immichtag`.
+  - Rewrite the docstrings in `src/immichtag/__init__.py` ("immichtag — anime image tagger → Immich-compatible XMP sidecars") and `src/immichtag/__main__.py`.
   - At this point the code still runs WD14; only the names change.
 - [X] T003 Rewrite `pyproject.toml`:
-  - Metadata: `name = "animetag"`, a new description, `requires-python = ">=3.11,<3.14"`.
+  - Metadata: `name = "immichtag"`, a new description, `requires-python = ">=3.11,<3.14"`.
   - Dependencies: keep `huggingface-hub>=0.24`, `lxml>=5.0`, `numpy>=1.24`, `pillow>=10.0`, `tqdm>=4.66`; remove `onnxruntime` and `pandas`; add `torch>=2.4`, `torchvision>=0.19`, `transformers>=4.46`, `timm>=1.0`, `safetensors>=0.4`. Keep the comment explaining version floors, not pins.
-  - `[project.scripts]`: `animetag = "animetag.cli:main"`, `animetag-filter = "animetag.filter_cli:main"`, `animetag-web = "animetag.web_cli:main"`, `animetag-immich = "animetag.immich_cli:main"`, `animetag-backup = "animetag.backup_cli:main"`.
-  - Build: `[tool.hatch.build.targets.wheel] packages = ["src/animetag"]`; a `[dependency-groups] dev = ["pytest>=8"]`.
+  - `[project.scripts]`: `immichtag = "immichtag.cli:main"`, `immichtag-filter = "immichtag.filter_cli:main"`, `immichtag-web = "immichtag.web_cli:main"`, `immichtag-sync = "immichtag.immich_cli:main"`, `immichtag-backup = "immichtag.backup_cli:main"`.
+  - Build: `[tool.hatch.build.targets.wheel] packages = ["src/immichtag"]`; a `[dependency-groups] dev = ["pytest>=8"]`.
   - Pytest: `[tool.pytest.ini_options]` with `testpaths = ["tests"]` and `markers = ["integration: needs the cached PixAI model and an Apple GPU"]`.
 - [X] T004 Regenerate `uv.lock` and the environment with `uv lock && uv sync` from the repository root, then check the result:
   - `uv run python -c "import torch, transformers, timm; assert torch.backends.mps.is_available()"` succeeds.
@@ -59,11 +59,11 @@ description: "Task list for 001-pixai-full-retag"
 - [X] T005 [P] Create `tests/__init__.py` (empty), `tests/unit/__init__.py`, `tests/integration/__init__.py` and `tests/conftest.py`. The conftest provides:
   - a `fixtures_dir` fixture pointing to `tests/fixtures`
   - a `tmp_library` fixture that copies `tests/fixtures/images/*` into `tmp_path/lib/<uuid-like>/ab/cd/` and returns the root
-  - an autouse fixture that sets `ANIMETAG_STATE_DIR` to `tmp_path/state`, so tests never touch the real state dir. `config.py` must honour this override (T011).
+  - an autouse fixture that sets `IMMICHTAG_STATE_DIR` to `tmp_path/state`, so tests never touch the real state dir. `config.py` must honour this override (T011).
   - a `pytest_collection_modifyitems` hook that skips `@pytest.mark.integration` tests unless `~/.cache/huggingface/hub/models--pixai-labs--pixai-tagger-v1.0/snapshots/f33cfdb53c0c90b049bab9ce066eea1118970ef8/model.safetensors` exists and `torch.backends.mps.is_available()` is true.
 - [X] T006 [P] Create the test fixtures in `tests/fixtures/`:
   - `tests/fixtures/wd14_legacy.xmp`: a copy of one real sidecar from `/Users/paul/docker/immich/library/upload/**/*.jpg.xmp`, containing `tag/bangs` and `rating/sensitive`, three `rdf:Bag`s and no provenance.
-  - `tests/fixtures/animetag_current.xmp`: the exact example in [contracts/sidecar-xmp.md](./contracts/sidecar-xmp.md), including the foreign tag `my_album/trip`.
+  - `tests/fixtures/immichtag_current.xmp`: the exact example in [contracts/sidecar-xmp.md](./contracts/sidecar-xmp.md), including the foreign tag `my_album/trip`.
   - `tests/fixtures/immich_rewritten.xmp`: the exiftool-rewritten form from research R5, with the full 40-hex revision. Provenance is written as child elements in their own `rdf:Description`; it has `dc:description/rdf:Alt/rdf:li` = `hello`, `xmp:Rating` 0, a `TagsList` `rdf:Seq` with `parody/fate∕grand_order`, `tag/long_hair` and `my_album/trip`, and stale `HierarchicalSubject`/`dc:subject` bags without `my_album/trip`.
   - `tests/fixtures/images/`: `a.jpg` (64×48 RGB) and `b.png` (48×64 RGBA with a transparent corner), generated once with Pillow.
 
@@ -78,12 +78,12 @@ description: "Task list for 001-pixai-full-retag"
 ### Tests (write first, must fail)
 
 - [X] T007 [P] Write `tests/unit/test_config.py`, covering:
-  - root resolution order `--dir` > `ANIMETAG_DIR` > default
-  - a set `WD14_DIR` alone is ignored and produces exactly one stderr notice (`note: WD14_DIR is no longer read; set ANIMETAG_DIR instead`)
-  - `config.toml` values are overridden by `ANIMETAG_IMMICH_URL`, `ANIMETAG_IMMICH_API_KEY` and `ANIMETAG_IMMICH_PATH_MAP`
+  - root resolution order `--dir` > `IMMICHTAG_DIR` > default
+  - a set `WD14_DIR` alone is ignored and produces exactly one stderr notice (`note: WD14_DIR is no longer read; set IMMICHTAG_DIR instead`)
+  - `config.toml` values are overridden by `IMMICHTAG_URL`, `IMMICHTAG_API_KEY` and `IMMICHTAG_PATH_MAP`
   - a group- or world-readable config file triggers a warning
   - the api key never appears in `repr(ImmichSettings)`
-  - the state dir follows `ANIMETAG_STATE_DIR` and the library id is stable for the same resolved root
+  - the state dir follows `IMMICHTAG_STATE_DIR` and the library id is stable for the same resolved root
 - [X] T008 [P] Write `tests/unit/test_vocab_core.py`, covering:
   - `escape_name("fate/grand_order") == "fate∕grand_order"`, and `unescape_name` reverses it
   - `is_managed()` is true for `tag/x`, `parody/x`, `character|x` and `tag|/_`, and false for `my_album/trip` and `untagged_foreign`
@@ -97,44 +97,44 @@ description: "Task list for 001-pixai-full-retag"
   - `read_sidecar(wd14_legacy.xmp)` has no provenance and includes `tag/bangs`
   - a garbage file yields `(tags=[], provenance=None, error=...)`
   - `merge_tags(new_managed, old_tags)` keeps `my_album/trip` after the managed tags and drops old managed tags
-  - `write_atomic()` leaves no `*.animetag-tmp` file and survives a simulated crash: monkeypatch `os.replace` to raise, then assert the original bytes are unchanged
+  - `write_atomic()` leaves no `*.immichtag-tmp` file and survives a simulated crash: monkeypatch `os.replace` to raise, then assert the original bytes are unchanged
 - [X] T010 [P] Write `tests/unit/test_library.py`, covering:
   - `classify()` returns NEW (no sidecar), LEGACY (wd14 fixture, or an unreadable sidecar), OUTDATED (provenance with another revision) and CURRENT (matching model+revision, attribute or element form)
   - `tagging_queue()` orders all NEW first, then LEGACY/OUTDATED, each group in scan order, and `overwrite=True` also includes CURRENT
-  - `remove_stale_tmp(root)` deletes `.*.xmp.animetag-tmp` files only
+  - `remove_stale_tmp(root)` deletes `.*.xmp.immichtag-tmp` files only
   - `PendingSync` append/read/remove round trip, with paths relative to the root
 
 ### Implementation
 
-- [X] T011 [P] Create `src/animetag/config.py`, per research R12:
+- [X] T011 [P] Create `src/immichtag/config.py`, per research R12:
   - `DEFAULT_ROOT = Path("/Users/paul/docker/immich/library/upload")`
   - `resolve_root(cli_dir: str | None) -> Path`, which prints the one-time `WD14_DIR` notice
-  - `state_dir(root) -> Path`, created on demand, honouring `ANIMETAG_STATE_DIR`
+  - `state_dir(root) -> Path`, created on demand, honouring `IMMICHTAG_STATE_DIR`
   - `library_id(root)`
   - `ImmichSettings(url, api_key, path_map)`, a dataclass whose `__repr__` masks the key
-  - `load_immich_settings()`, reading `~/.config/animetag/config.toml` via `tomllib` with env overrides and warning when the file mode is looser than 0600
-- [X] T012 [P] Create `src/animetag/vocab.py`:
+  - `load_immich_settings()`, reading `~/.config/immichtag/config.toml` via `tomllib` with env overrides and warning when the file mode is looser than 0600
+- [X] T012 [P] Create `src/immichtag/vocab.py`:
   - `MANAGED_PREFIXES`
   - `CATEGORY_PREFIX = {"general": "tag", "character": "character", "copyright": "parody", "meta": "meta", "rating": "rating"}` (style absent)
   - `DEFAULT_THRESHOLDS = {"general": .34, "character": .37, "copyright": .46, "meta": .47}`
-  - `JUNK_TAGS`, moved verbatim from the old `src/animetag/tagger.py`
+  - `JUNK_TAGS`, moved verbatim from the old `src/immichtag/tagger.py`
   - `META_WHITELIST`, the 28 names in research R6
   - `RATING_MAP`, `ESCAPE = "∕"`
   - the functions `escape_name`, `unescape_name`, `is_managed`, `split_tag`, `normalize` and `leaf_of`
   - This is the single place the rules in [data-model.md → Tag](./data-model.md#tag) live.
-- [X] T013 Create `src/animetag/sidecar.py`, which depends on T012. It implements [contracts/sidecar-xmp.md](./contracts/sidecar-xmp.md):
+- [X] T013 Create `src/immichtag/sidecar.py`, which depends on T012. It implements [contracts/sidecar-xmp.md](./contracts/sidecar-xmp.md):
   - `Provenance(model, revision, profile, tagged_at)`
   - `SidecarData(tags, provenance, error)`
   - `sidecar_path(image)`
   - `read_sidecar(path)`:
-    - A regex fast path applies only when the file contains `animetag:model="`; everything else goes through lxml with `recover=True`.
+    - A regex fast path applies only when the file contains `immichtag:model="`; everything else goes through lxml with `recover=True`.
     - Read `rdf:li` elements only under the `digiKam:TagsList`, then `lr:HierarchicalSubject`, then `dc:subject` `Seq`/`Bag`.
     - Accept the provenance attribute and element forms.
   - `read_tags(path)`
   - `build_xmp(tags, provenance) -> bytes`, using lxml; `TagsList` as `rdf:Seq`, the other two as `rdf:Bag`
   - `merge_tags(managed, old)`
-  - `write_atomic(path, data)`: write `.<name>.animetag-tmp` in the same directory, `fsync`, `os.replace`
-- [X] T014 Create `src/animetag/library.py`, which depends on T013:
+  - `write_atomic(path, data)`: write `.<name>.immichtag-tmp` in the same directory, `fsync`, `os.replace`
+- [X] T014 Create `src/immichtag/library.py`, which depends on T013:
   - `IMAGE_EXTS` and `SKIP_DIRS`, moved from the old tagger
   - `image_files(root)`
   - `Status` enum (`NEW`, `LEGACY`, `OUTDATED`, `CURRENT`)
@@ -143,19 +143,19 @@ description: "Task list for 001-pixai-full-retag"
   - `tagging_queue(entries, overwrite=False)`
   - `remove_stale_tmp(root)`
   - `PendingSync(state_dir)` with `append(path, had_sidecar)`, `entries()` and `remove(paths)`, backed by `pending-sync.jsonl`; paths are relative to the root, the file is rewritten atomically on remove
-- [X] T015 Rewire `src/animetag/filterer.py`, `src/animetag/index.py`, `src/animetag/filter_cli.py` and `src/animetag/web_cli.py` onto the new foundation, so the package imports without the old tagger internals:
-  - `src/animetag/filterer.py`: take `IMAGE_EXTS`/`SKIP_DIRS` from `library`; replace `parse_sidecar`/`LI_RE` with `sidecar.read_tags`; take `normalize` from `vocab` (the category-aware matching comes in US3).
-  - `src/animetag/index.py`: use `sidecar.read_tags`.
-  - `src/animetag/filter_cli.py` and `src/animetag/web_cli.py`: use `config.resolve_root` instead of `cli.DEFAULT_DIR`.
+- [X] T015 Rewire `src/immichtag/filterer.py`, `src/immichtag/index.py`, `src/immichtag/filter_cli.py` and `src/immichtag/web_cli.py` onto the new foundation, so the package imports without the old tagger internals:
+  - `src/immichtag/filterer.py`: take `IMAGE_EXTS`/`SKIP_DIRS` from `library`; replace `parse_sidecar`/`LI_RE` with `sidecar.read_tags`; take `normalize` from `vocab` (the category-aware matching comes in US3).
+  - `src/immichtag/index.py`: use `sidecar.read_tags`.
+  - `src/immichtag/filter_cli.py` and `src/immichtag/web_cli.py`: use `config.resolve_root` instead of `cli.DEFAULT_DIR`.
   - Then run `uv run pytest tests/unit -q`; T007–T010 must pass.
 
-**Checkpoint**: Foundation ready. `uv run animetag-filter --list-tags 20` still works on the real library, now through the new reader.
+**Checkpoint**: Foundation ready. `uv run immichtag-filter --list-tags 20` still works on the real library, now through the new reader.
 
 ---
 
 ## Phase 3: User Story 1 — 用新模型重新标注整个图库 (Priority: P1) 🎯 MVP
 
-**Goal**: A single `animetag` run re-tags every image with PixAI v1.0: new images first, legacy after. It backs up before overwriting, writes atomically, can be resumed, and leaves no WD14 code path.
+**Goal**: A single `immichtag` run re-tags every image with PixAI v1.0: new images first, legacy after. It backs up before overwriting, writes atomically, can be resumed, and leaves no WD14 code path.
 
 **Independent Test**: [quickstart.md](./quickstart.md) scenarios 1–4, on a throwaway copy with `--no-immich`.
 
@@ -194,7 +194,7 @@ description: "Task list for 001-pixai-full-retag"
 
 ### Implementation for User Story 1
 
-- [X] T021 [P] [US1] Rewrite `src/animetag/tagger.py`, deleting all WD14/ONNX/pandas code. It provides:
+- [X] T021 [P] [US1] Rewrite `src/immichtag/tagger.py`, deleting all WD14/ONNX/pandas code. It provides:
   - `select_device(pref)`: `auto` means mps if available, else cpu
   - `load_model(device)`:
     - `AutoModel.from_pretrained(MODEL_REPO, revision=MODEL_REVISION, trust_remote_code=True).eval().to(device)`, then `.half()` on mps
@@ -211,15 +211,15 @@ description: "Task list for 001-pixai-full-retag"
   - `tags_from_probs(...)`, per T016
   - `iter_preprocessed(paths)`: a one-thread `ThreadPoolExecutor` prefetch that yields `(path, tensor | exception)`
   - `profile_name(thresholds)`: `"v1"` when all defaults, else `"custom:g…,c…,p…,m…"`
-- [X] T022 [P] [US1] Create `src/animetag/backup.py`, per research R10 and [data-model.md → Backup](./data-model.md#backup):
+- [X] T022 [P] [US1] Create `src/immichtag/backup.py`, per research R10 and [data-model.md → Backup](./data-model.md#backup):
   - `create_backup(root, sidecars, state_dir, reason) -> str | None`: skips when every sidecar is already archived; writes `backups/<UTC %Y%m%dT%H%M%SZ>/{sidecars.tar.gz, manifest.jsonl, meta.json}`; raises before returning if any write fails
   - `list_backups(state_dir)`
   - `restore(root, backup_id, state_dir, dry_run=False) -> list[Path]`: takes a safety backup, then calls `sidecar.write_atomic` for each file
-- [X] T023 [P] [US1] Add `TaggingLock` and `LockBusy` to `src/animetag/library.py`, per research R11:
+- [X] T023 [P] [US1] Add `TaggingLock` and `LockBusy` to `src/immichtag/library.py`, per research R11:
   - `fcntl.flock(LOCK_EX|LOCK_NB)` on `<state>/tagging.lock`
   - the pid and ISO start time are written into the file for error messages
   - usable as a context manager
-- [X] T024 [US1] Create `src/animetag/run.py`, which depends on T021–T023. It is the single tagging workflow shared by the CLI and the web:
+- [X] T024 [US1] Create `src/immichtag/run.py`, which depends on T021–T023. It is the single tagging workflow shared by the CLI and the web:
   - `RunOptions`: thresholds, `keep_common`, `include_rating`, `overwrite`, `limit`, `device`, `immich` flag
   - `RunProgress`: `total_new`, `total_retag`, `done`, `written`, `failed`, `skipped`, `device`, `eta_seconds` from a moving average of the last 50 images, `backup_id`, `state`, `messages`, `sync`
   - `TaggingRun(root, options, tagger_factory=tagger.load_model, on_progress=None, cancel: threading.Event)` with `run()`, which proceeds as follows:
@@ -232,7 +232,7 @@ description: "Task list for 001-pixai-full-retag"
     7. stop cleanly on `cancel`
     8. call the post-run hook `self.after_write(progress)`, a no-op until US2
   - Returns the final `RunProgress`.
-- [X] T025 [US1] Rewrite `src/animetag/cli.py` for the `animetag` command per [contracts/cli.md](./contracts/cli.md#animetag--tag-and-re-tag):
+- [X] T025 [US1] Rewrite `src/immichtag/cli.py` for the `immichtag` command per [contracts/cli.md](./contracts/cli.md#immichtag--tag-and-re-tag):
   - Flags and defaults: `--dir --dry-run --limit --overwrite --general-threshold --character-threshold --parody-threshold --meta-threshold --keep-common-tags --no-rating --device --no-immich`. `--rating-threshold` is gone.
   - `--dry-run` prints the counts per status and an ETA at 1.8 img/s (mps) or 0.2 img/s (cpu, marked as an estimate) without loading the model.
   - Print the scan, backup and model lines, then run a tqdm bar driven by `on_progress`.
@@ -240,11 +240,11 @@ description: "Task list for 001-pixai-full-retag"
   - SIGINT sets the cancel event and exits 130 after the run unwinds.
   - `LockBusy` exits 3.
   - Exit 1 when failed > 0 and written == 0.
-- [X] T026 [P] [US1] Create `src/animetag/backup_cli.py` for `animetag-backup list|restore ID [--dir] [--dry-run] [--no-immich]`, per contracts/cli.md:
+- [X] T026 [P] [US1] Create `src/immichtag/backup_cli.py` for `immichtag-backup list|restore ID [--dir] [--dry-run] [--no-immich]`, per contracts/cli.md:
   - `list` prints the id, count, compressed size and reason.
   - `restore` calls `backup.restore`, then appends the restored paths to `PendingSync`. The Immich sync is wired in T037.
-- [X] T027 [US1] Keep `src/animetag/web.py` working. Replace `AppState._run_tagging`'s use of `tagger.load_model`/`tagger.process_one` with a `run.TaggingRun` using default `RunOptions`, and map `RunProgress` onto the existing `TagJob` fields (`total`, `done`, `written`, `skipped`, `failed`, `eta`). The full job state machine comes in US4 (T050).
-- [X] T028 [US1] Remove every WD14 remnant from `src/animetag/`:
+- [X] T027 [US1] Keep `src/immichtag/web.py` working. Replace `AppState._run_tagging`'s use of `tagger.load_model`/`tagger.process_one` with a `run.TaggingRun` using default `RunOptions`, and map `RunProgress` onto the existing `TagJob` fields (`total`, `done`, `written`, `skipped`, `failed`, `eta`). The full job state machine comes in US4 (T050).
+- [X] T028 [US1] Remove every WD14 remnant from `src/immichtag/`:
   - `rg -n "onnxruntime|pandas|SmilingWolf|selected_tags|wd-v1-4|process_one|preprocess_image" src/` must return nothing.
   - The old threshold constants (`DEFAULT_PARODY_THRESHOLD`, `DEFAULT_RATING_THRESHOLD`) and the category ids 0/3/4/9 are deleted.
   - Then run `uv run pytest -q`; unit tests pass, and integration tests pass when the model is cached.
@@ -257,7 +257,7 @@ description: "Task list for 001-pixai-full-retag"
 
 **Goal**: After every run, and on demand, Immich re-reads the written sidecars and loses every empty *managed* tag, including the 6,816 legacy pipe tags. Nothing non-managed is ever deleted, and an unreachable Immich never fails a run.
 
-**Independent Test**: This works even on the current WD14 sidecars. `animetag-immich cleanup --dry-run` lists the legacy pipe tags and no non-managed tag; `animetag-immich sync --all` then makes Immich's tags equal each sidecar's `TagsList` (quickstart scenario 7).
+**Independent Test**: This works even on the current WD14 sidecars. `immichtag-sync cleanup --dry-run` lists the legacy pipe tags and no non-managed tag; `immichtag-sync sync --all` then makes Immich's tags equal each sidecar's `TagsList` (quickstart scenario 7).
 
 ### Tests for User Story 2
 
@@ -288,7 +288,7 @@ description: "Task list for 001-pixai-full-retag"
 
 ### Implementation for User Story 2
 
-- [X] T032 [US2] Create `src/animetag/immich.py`, part 1 (client), per contracts/immich-api.md:
+- [X] T032 [US2] Create `src/immichtag/immich.py`, part 1 (client), per contracts/immich-api.md:
   - `ImmichClient(settings)` on `urllib.request`, with JSON bodies, a 30 s timeout, and retries at 1, 4 and 16 s on connection errors and 5xx
   - `ImmichUnavailable`, and `ImmichAuthError(endpoint, permission)`
   - `version()`
@@ -300,11 +300,11 @@ description: "Task list for 001-pixai-full-retag"
   - `wait_idle(timeout=7200, poll=5, on_progress)`
   - `list_tags()` and `delete_tag(id)`
   - `PathMap` with `parse`, `to_local`, `to_remote` and `autodetect(client, root)`
-- [X] T033 [US2] Add part 2 (cleanup) to `src/animetag/immich.py`, per research R9:
+- [X] T033 [US2] Add part 2 (cleanup) to `src/immichtag/immich.py`, per research R9:
   - `managed_in_use(root) -> set[str]`: every managed tag value (normalized) across all sidecars via `sidecar.read_tags`, plus all their ancestor paths
   - `plan_cleanup(tags, in_use) -> list[tag]`, deepest first
   - `run_cleanup(client, candidates, dry_run, on_progress) -> CleanupResult(count, deleted, skipped_nonempty, by_prefix, examples)`, which verifies each candidate is empty before `delete_tag`
-- [X] T034 [US2] Add part 3 (sync) to `src/animetag/immich.py`, per research R8. `sync(root, settings, state_dir, all=False, cleanup=True, on_progress=None) -> SyncResult(ok, reason, refreshed, discovered, deleted_tags, pending)`:
+- [X] T034 [US2] Add part 3 (sync) to `src/immichtag/immich.py`, per research R8. `sync(root, settings, state_dir, all=False, cleanup=True, on_progress=None) -> SyncResult(ok, reason, refreshed, discovered, deleted_tags, pending)`:
   1. map the local paths to asset ids with `iter_assets` and `PathMap`
   2. refresh the known assets
   3. run discovery if any entry is NEW (or always with `all`)
@@ -313,20 +313,20 @@ description: "Task list for 001-pixai-full-retag"
   6. `PendingSync.remove` the covered entries only on success
 
   It catches `ImmichUnavailable`/`ImmichAuthError` into a `SyncResult`. A discovery 404 sets `reason = "discovery needed: Immich → Administration → Jobs → Sidecar metadata → Discover"` but still counts as ok for the refreshed entries.
-- [X] T035 [US2] Create `src/animetag/immich_cli.py` for `animetag-immich sync [--all] [--no-cleanup] [--dry-run] | cleanup [--dry-run] | status`, per contracts/cli.md:
+- [X] T035 [US2] Create `src/immichtag/immich_cli.py` for `immichtag-sync sync [--all] [--no-cleanup] [--dry-run] | cleanup [--dry-run] | status`, per contracts/cli.md:
   - Without a key: exit 2 with the exact message from the contract.
   - `status`: prints the version, reachability, pending count, managed-empty count, and a permission check made by calling `GET /api/tags`, `GET /api/jobs` and a size-1 search.
   - `sync --dry-run`: prints what would be refreshed, discovered and deleted without calling any write endpoint.
-- [X] T036 [US2] Wire automatic sync into the tagging run in `src/animetag/run.py` and `src/animetag/cli.py`:
-  - `src/animetag/run.py`: `after_write` calls `immich.sync(root, settings, state_dir)` when `options.immich` is on, a key is configured and at least one sidecar was written. The result goes in `RunProgress.sync`; `state` becomes `syncing` meanwhile.
-  - `src/animetag/cli.py`: print `Immich: refreshed N, discovered M, removed K empty tags.`, or `Immich sync pending (N images): <reason>. Run: animetag-immich sync`. The exit code is unchanged (FR-021).
-- [X] T037 [US2] In `src/animetag/backup_cli.py`, make `restore` run `immich.sync` for the restored paths unless `--no-immich`, and print the same result lines as T036.
-- [X] T038 [US2] Add the Immich routes to `src/animetag/web.py`, per [contracts/web-api.md](./contracts/web-api.md#new):
+- [X] T036 [US2] Wire automatic sync into the tagging run in `src/immichtag/run.py` and `src/immichtag/cli.py`:
+  - `src/immichtag/run.py`: `after_write` calls `immich.sync(root, settings, state_dir)` when `options.immich` is on, a key is configured and at least one sidecar was written. The result goes in `RunProgress.sync`; `state` becomes `syncing` meanwhile.
+  - `src/immichtag/cli.py`: print `Immich: refreshed N, discovered M, removed K empty tags.`, or `Immich sync pending (N images): <reason>. Run: immichtag-sync sync`. The exit code is unchanged (FR-021).
+- [X] T037 [US2] In `src/immichtag/backup_cli.py`, make `restore` run `immich.sync` for the restored paths unless `--no-immich`, and print the same result lines as T036.
+- [X] T038 [US2] Add the Immich routes to `src/immichtag/web.py`, per [contracts/web-api.md](./contracts/web-api.md#new):
   - `POST/GET /api/immich/sync`: one background `SyncJob` at a time, with `phase` in refresh|discover|waiting|cleanup, `done` and `total`
   - `GET /api/immich/cleanup-preview`
   - `POST /api/immich/cleanup`: 400 without `{"confirm": true}`
   - `/api/status` gains `immich: {configured, reachable, pending}`
-- [X] T039 [US2] Add the Immich UI to `src/animetag/web/index.html`, `src/animetag/web/app.js` and `src/animetag/web/app.css`:
+- [X] T039 [US2] Add the Immich UI to `src/immichtag/web/index.html`, `src/immichtag/web/app.js` and `src/immichtag/web/app.css`:
   - a "Sync to Immich (N)" header button, visible when `status.immich.pending > 0`, with phase progress from polling `GET /api/immich/sync`
   - a "Clean up Immich tags" panel that shows the preview (count, by prefix, examples) and enables a Delete button only after the preview has loaded; it posts `confirm: true`
   - no `alert`/`confirm` dialogs
@@ -368,33 +368,33 @@ description: "Task list for 001-pixai-full-retag"
 
 ### Implementation for User Story 3
 
-- [X] T043 [US3] Make matching category-aware in `src/animetag/filterer.py`, per data-model.md → Tag:
+- [X] T043 [US3] Make matching category-aware in `src/immichtag/filterer.py`, per data-model.md → Tag:
   - `pattern_matches(pattern, full, leaf)` targets the full tag when `vocab.split_tag(pattern)[0]` is a managed prefix, and the leaf otherwise.
   - `_has_tag` uses the same rule.
   - `find_matches` computes leaves with `vocab.leaf_of` instead of `rsplit("/", 1)`.
   - `TagFilter.parse` and `parse_exclusions` normalize through `vocab.normalize`.
   - `find_matches` gains an optional `stats` collector that counts sidecar statuses and the occurrences of requested patterns, for T046.
   - Update the docstrings that describe the old "contains a `/`" rule.
-- [X] T044 [P] [US3] Extend `src/animetag/vocab.py`:
+- [X] T044 [P] [US3] Extend `src/immichtag/vocab.py`:
   - `load_model_vocabulary()`: `hf_hub_download(MODEL_REPO, "config.json", revision=MODEL_REVISION)`, mapping each normalized name → (category, prefix or None for style). Cached per process; returns None when unavailable.
   - `classify_pattern(pattern, library_counts, model_vocab) -> Warning | None` with kinds `legacy`, `unknown` and `empty`
   - `suggest(name, candidates, n=5)` via `difflib.get_close_matches` plus substring matches
-- [X] T045 [US3] Update `src/animetag/index.py`:
+- [X] T045 [US3] Update `src/immichtag/index.py`:
   - leaves via `vocab.leaf_of`, and `by_leaf` keyed on the new leaf
   - during `build()`, record each image's `library.Status` from its sidecar provenance, exposed as `retag_counts() -> {"legacy": n, "outdated": n}`
   - `warnings_for(filters, exclude) -> list[dict]`, returning `{pattern, kind, count, similar}` for plain patterns that expand to nothing, using `vocab.classify_pattern` with the index's tag counts and the model vocabulary
-- [X] T046 [US3] Update `src/animetag/filter_cli.py`, per [contracts/cli.md → animetag-filter](./contracts/cli.md#animetag-filter--export):
+- [X] T046 [US3] Update `src/immichtag/filter_cli.py`, per [contracts/cli.md → immichtag-filter](./contracts/cli.md#immichtag-filter--export):
   - Before scanning: warn about plain patterns missing from the model vocabulary, with suggestions.
   - After scanning: print the legacy count, or `does not exist`, from the `stats` collector (`at least N` when stopped early).
   - Print `note: N images are not re-tagged yet; results may be incomplete` when the scan saw LEGACY/OUTDATED sidecars.
   - Update the `EPILOG` examples to tags that exist in the new vocabulary (e.g. `parody/fate/grand_order`, `meta/ai-generated`, `-x rating/explicit`).
-- [X] T047 [US3] Update `src/animetag/web.py`:
+- [X] T047 [US3] Update `src/immichtag/web.py`:
   - `/api/search` adds `warnings` from `index.warnings_for`.
   - `/api/status` adds `retag` (from `index.retag_counts()`) and `model: {name, revision[:7]}`.
   - `GET /api/untagged` is renamed to `GET /api/pending-tagging`, returning `{"new","legacy","outdated","current"}` from `library.scan`.
-  - Update the module docstring to describe animetag and PixAI.
-- [X] T048 [US3] Update `src/animetag/web/index.html`, `src/animetag/web/app.js` and `src/animetag/web/app.css`:
-  - The `<title>` and `<h1>` become `animetag`.
+  - Update the module docstring to describe immichtag and PixAI.
+- [X] T048 [US3] Update `src/immichtag/web/index.html`, `src/immichtag/web/app.js` and `src/immichtag/web/app.css`:
+  - The `<title>` and `<h1>` become `immichtag`.
   - A dismissible banner "N images not re-tagged yet — results may be incomplete" shows when `status.retag` totals > 0.
   - Warnings render under the filter row whose pattern produced them; clicking a suggestion replaces that pattern and re-runs the search.
   - The header tag button uses `/api/pending-tagging` and shows "Tag N new · re-tag M".
@@ -409,7 +409,7 @@ description: "Task list for 001-pixai-full-retag"
 **Goal**: After the migration, one command or one click tags only the new uploads and syncs Immich. The web and the CLI can never write concurrently.
 
 **Independent Test**: With a fully re-tagged copy plus 5 new images:
-- one `animetag` run touches exactly those 5 and syncs them
+- one `immichtag` run touches exactly those 5 and syncs them
 - a CLI run started while the web job runs exits 3 without writing (quickstart scenario 6)
 
 ### Tests for User Story 4
@@ -422,13 +422,13 @@ description: "Task list for 001-pixai-full-retag"
 
 ### Implementation for User Story 4
 
-- [X] T050 [US4] Rebuild `TagJob` in `src/animetag/web.py` on `run.TaggingRun` with the full state set from [contracts/web-api.md](./contracts/web-api.md#post-apitag-and-get-apitag):
+- [X] T050 [US4] Rebuild `TagJob` in `src/immichtag/web.py` on `run.TaggingRun` with the full state set from [contracts/web-api.md](./contracts/web-api.md#post-apitag-and-get-apitag):
   - states `scanning | locking | backing-up | loading | running | syncing | finished | cancelled | error | refused`
   - fields `totalNew`, `totalRetag`, `device`, `eta`, `backupId`, `sync`
   - cancellation through `RunOptions`' cancel event
   - `LockBusy` maps to `refused`
   - the index is rebuilt after any run with writes, before the state is set final, preserving the existing ordering guarantee in `_run_tagging`
-- [X] T051 [US4] Update the tag panel in `src/animetag/web/app.js`:
+- [X] T051 [US4] Update the tag panel in `src/immichtag/web/app.js`:
   - show new versus re-tag counts, the device (with a CPU warning), the ETA, the backup id and the post-run Immich result line
   - show `refused` with the holder message
   - reattach after a reload, as today
@@ -439,18 +439,18 @@ description: "Task list for 001-pixai-full-retag"
 
 ## Phase 7: Polish & Cross-Cutting Concerns
 
-- [X] T052 [P] Rewrite `README.md` for animetag (FR-027, FR-028). Cover:
+- [X] T052 [P] Rewrite `README.md` for immichtag (FR-027, FR-028). Cover:
   - the five commands and their flags, with a migration section: the old `wd14*` commands and `WD14_DIR` are gone
-  - Immich setup: an admin API key with `asset.read, asset.update, job.create, job.read, tag.read, tag.delete`; `~/.config/animetag/config.toml` (chmod 600) with `path_map`
+  - Immich setup: an admin API key with `asset.read, asset.update, job.create, job.read, tag.read, tag.delete`; `~/.config/immichtag/config.toml` (chmod 600) with `path_map`
   - what the automatic sync and cleanup do and what they never touch
   - the tag scheme: prefixes, `meta/` whitelist, one rating, `∕` in names, and new-vocabulary differences such as `bangs` → `blunt_bangs`/`swept_bangs`/`hair_between_eyes`
-  - backups and `animetag-backup restore`
+  - backups and `immichtag-backup restore`
   - performance (≈1.8 img/s on the M5, ≈14 h for the library)
   - removing the old WD14 cache
   - an updated Layout table with the new modules
 - [X] T053 [P] Create `scripts/bench20.py`:
   - reads a list of image paths (default: 20 random images with `--seed 20`, read-only)
-  - times preprocess and inference per image with `animetag.tagger`
+  - times preprocess and inference per image with `immichtag.tagger`
   - prints img/s, images with a character, and the average number of `tag/` tags
   - never writes sidecars
 - [X] T054 [P] Create `scripts/verify_immich.py`:
@@ -459,15 +459,15 @@ description: "Task list for 001-pixai-full-retag"
   - fetches `GET /api/assets/{id}` tags and compares them as sets with `sidecar.read_tags`
   - prints the mismatches and exits 1 if any exist (SC-003)
 - [X] T055 Audit the rename and dependency removal across `src/`, `tests/` and `pyproject.toml`:
-  - `rg -n -i "wd14" --glob '!specs/**' --glob '!README.md' .` returns only the `WD14_DIR` notice in `src/animetag/config.py` and its test.
+  - `rg -n -i "wd14" --glob '!specs/**' --glob '!README.md' .` returns only the `WD14_DIR` notice in `src/immichtag/config.py` and its test.
   - `rg -n "onnxruntime|pandas" src tests pyproject.toml` returns nothing.
-  - `uv run animetag --help`, `animetag-filter --help`, `animetag-web --help`, `animetag-immich --help` and `animetag-backup --help` all work.
+  - `uv run immichtag --help`, `immichtag-filter --help`, `immichtag-web --help`, `immichtag-sync --help` and `immichtag-backup --help` all work.
 - [ ] T056 *(Status 2026-09-21: 132 tests pass, including integration; quickstart 1–6 verified on library copies. Scenario 7 is still open: it needs the user's Immich API key.)* Run `uv run pytest -q` over `tests/` (all unit tests, plus integration tests with the model cached), then quickstart scenarios 1–7 end to end, and fix any failures before the full run.
 - [ ] T057 *(Status: waiting for the user.)* Operational step, run by the user, about 13–15 h (scenario 8 in `specs/001-pixai-full-retag/quickstart.md`):
-  1. Take a fresh Immich DB backup, then run `uv run animetag`; it can be resumed.
+  1. Take a fresh Immich DB backup, then run `uv run immichtag`; it can be resumed.
   2. Verify the success criteria:
-     - `uv run animetag --dry-run` shows 0 to re-tag (SC-001)
-     - `uv run animetag-immich status` shows pending 0 and 0 empty managed tags (SC-003)
+     - `uv run immichtag --dry-run` shows 0 to re-tag (SC-001)
+     - `uv run immichtag-sync status` shows pending 0 and 0 empty managed tags (SC-003)
      - `uv run python scripts/verify_immich.py --sample 100` passes (SC-003)
      - `uv run python scripts/bench20.py` gives ≥ 15/20 with a character and an average of 25–45 `tag/` tags (SC-004, SC-005)
   3. Keep the first backup until you have accepted the result.
@@ -533,5 +533,5 @@ Tests first, and they must fail. Then new modules, then the CLI and web wiring, 
 ### Notes
 
 - Never run the model with `.to(dtype=...)`; see T021 and research R1.
-- Nothing in these tasks writes into the Immich upload tree except sidecars and their short-lived `*.animetag-tmp` files.
+- Nothing in these tasks writes into the Immich upload tree except sidecars and their short-lived `*.immichtag-tmp` files.
 - Commit after each task or logical group, now possible thanks to T001.

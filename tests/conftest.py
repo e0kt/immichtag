@@ -33,10 +33,10 @@ def tmp_library(tmp_path: Path) -> Path:
 
 @pytest.fixture(autouse=True)
 def _isolated_state(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("ANIMETAG_STATE_DIR", str(tmp_path / "state"))
-    monkeypatch.setenv("ANIMETAG_CONFIG", str(tmp_path / "config.toml"))
-    for name in ("ANIMETAG_DIR", "WD14_DIR", "ANIMETAG_IMMICH_URL",
-                 "ANIMETAG_IMMICH_API_KEY", "ANIMETAG_IMMICH_PATH_MAP"):
+    monkeypatch.setenv("IMMICHTAG_STATE_DIR", str(tmp_path / "state"))
+    monkeypatch.setenv("IMMICHTAG_CONFIG", str(tmp_path / "config.toml"))
+    for name in ("IMMICHTAG_DIR", "WD14_DIR", "IMMICHTAG_URL",
+                 "IMMICHTAG_API_KEY", "IMMICHTAG_PATH_MAP"):
         monkeypatch.delenv(name, raising=False)
 
 

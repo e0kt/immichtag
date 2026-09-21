@@ -25,8 +25,8 @@ from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
 from typing import Callable, Dict, Iterable, Iterator, List, Optional, Set, Tuple
 
-from animetag import filterer, library, sidecar, vocab
-from animetag.config import ImmichSettings
+from immichtag import filterer, library, sidecar, vocab
+from immichtag.config import ImmichSettings
 
 DISCOVERY_HINT = "discovery needed: Immich → Administration → Jobs → Sidecar metadata → Discover"
 
@@ -469,7 +469,7 @@ def sync(root: Path, settings: ImmichSettings, state_dir: Path, *, all: bool = F
         idle = client.wait_idle(poll=poll, timeout=timeout,
                                 on_progress=lambda left: phase("waiting", 0, left))
         if not idle:
-            note = "Immich is still re-reading sidecars; run `animetag-immich cleanup` later"
+            note = "Immich is still re-reading sidecars; run `immichtag-sync cleanup` later"
             result.reason = f"{result.reason}; {note}" if result.reason else note
         elif cleanup:
             phase("cleanup")

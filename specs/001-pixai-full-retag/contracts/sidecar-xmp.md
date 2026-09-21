@@ -2,21 +2,21 @@
 
 The sidecar is the interface shared by the tagger, which writes it, Immich (reads it, and rewrites it when the user edits tags in Immich), and the filter, index and export code, which read it.
 
-## As written by `animetag`
+## As written by `immichtag`
 
 ```xml
 <?xml version='1.0' encoding='UTF-8'?>
 <x:xmpmeta xmlns:x="adobe:ns:meta/">
   <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
     <rdf:Description rdf:about=""
-        xmlns:animetag="http://ns.animetag.local/1.0/"
+        xmlns:immichtag="http://ns.immichtag.local/1.0/"
         xmlns:digiKam="http://www.digikam.org/ns/1.0/"
         xmlns:lr="http://ns.adobe.com/lightroom/1.0/"
         xmlns:dc="http://purl.org/dc/elements/1.1/"
-        animetag:model="pixai-labs/pixai-tagger-v1.0"
-        animetag:revision="f33cfdb53c0c90b049bab9ce066eea1118970ef8"
-        animetag:profile="v1"
-        animetag:taggedAt="2026-09-22T03:14:15Z">
+        immichtag:model="pixai-labs/pixai-tagger-v1.0"
+        immichtag:revision="f33cfdb53c0c90b049bab9ce066eea1118970ef8"
+        immichtag:profile="v1"
+        immichtag:taggedAt="2026-09-22T03:14:15Z">
       <digiKam:TagsList>
         <rdf:Seq>
           <rdf:li>character/jeanne_d'arc_alter_(fate)</rdf:li>
@@ -48,7 +48,7 @@ The sidecar is the interface shared by the tagger, which writes it, Immich (read
 ## As rewritten by Immich (must be accepted)
 
 Immich 3.2.2's `SidecarWrite` uses exiftool 13.59. The following output was verified on a copy of the file above after a tag edit:
-- The provenance **attributes** become **child elements** (`<animetag:model>…</animetag:model>`) of a separate `rdf:Description` in the same namespace.
+- The provenance **attributes** become **child elements** (`<immichtag:model>…</immichtag:model>`) of a separate `rdf:Description` in the same namespace.
 - `digiKam:TagsList` is rewritten with the asset's full current tag list, as an `rdf:Seq`.
 - `lr:HierarchicalSubject` and `dc:subject` are left as they were, so they may be stale.
 - Other properties may appear, for example `dc:description` holding an `rdf:Alt`/`rdf:li`, and `xmp:Rating`.
@@ -56,7 +56,7 @@ Immich 3.2.2's `SidecarWrite` uses exiftool 13.59. The following output was veri
 **Reader rules:**
 1. Tags come from `digiKam:TagsList` when present, otherwise from `lr:HierarchicalSubject`, otherwise from `dc:subject`. This is the same precedence as Immich's `getTagList`.
 2. Only `rdf:li` elements that are direct children of the chosen property's `rdf:Seq` or `rdf:Bag` count as tags. `rdf:Alt` content (descriptions, titles) is never read as a tag.
-3. Provenance is read from `animetag:*` attributes on any `rdf:Description`, or from `animetag:*` child elements. If both exist, the attribute form wins.
+3. Provenance is read from `immichtag:*` attributes on any `rdf:Description`, or from `immichtag:*` child elements. If both exist, the attribute form wins.
 4. If the file cannot be parsed, it is treated as having no tags and status `LEGACY`.
 
 ## Legacy (WD14) sidecars

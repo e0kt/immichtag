@@ -1,4 +1,4 @@
-"""A small in-process stand-in for the Immich 3.2 endpoints animetag uses."""
+"""A small in-process stand-in for the Immich 3.2 endpoints immichtag uses."""
 
 from __future__ import annotations
 

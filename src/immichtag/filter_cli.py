@@ -1,6 +1,6 @@
 """Command line entry point for the tag filter.
 
-`uv run animetag-filter --filter blue_hair,long_hair --out ./picked` scans the library
+`uv run immichtag-filter --filter blue_hair,long_hair --out ./picked` scans the library
 for tagged images matching the filters and copies them out, shrinking anything over
 the size limit on the way.
 """
@@ -15,28 +15,28 @@ from pathlib import Path
 
 from tqdm import tqdm
 
-from animetag import config, filterer, vocab
-from animetag.filterer import MAX_FILTERS
+from immichtag import config, filterer, vocab
+from immichtag.filterer import MAX_FILTERS
 
 EPILOG = """\
 examples:
   # one filter, three tags: images having all of them
-  animetag-filter -f "blue_hair,long_hair,school_uniform" -o ./picked
+  immichtag-filter -f "blue_hair,long_hair,school_uniform" -o ./picked
 
   # two filters: an image matching EITHER one is taken
-  animetag-filter -f "character/hatsune_miku" -f "parody/fate/grand_order" -o ./picked
+  immichtag-filter -f "character/hatsune_miku" -f "parody/fate/grand_order" -o ./picked
 
   # a series, with or without the parody/ prefix; meta tags like meta/ai-generated work too
-  animetag-filter -f "fate/grand_order,-meta/ai-generated" -o ./picked
+  immichtag-filter -f "fate/grand_order,-meta/ai-generated" -o ./picked
 
   # exclude within one filter with a leading '-', glob with '*', cap the output
-  animetag-filter -f "cat_ears,-rating/explicit,blue_*" -n 200 -o ./picked
+  immichtag-filter -f "cat_ears,-rating/explicit,blue_*" -n 200 -o ./picked
 
   # -x vetoes across every filter, so neither group can bring explicit images in
-  animetag-filter -f "cat_ears" -f "character/hatsune_miku" -x "rating/explicit,monochrome" -o ./picked
+  immichtag-filter -f "cat_ears" -f "character/hatsune_miku" -x "rating/explicit,monochrome" -o ./picked
 
   # see what tags the library actually has before writing a filter
-  animetag-filter --list-tags 40
+  immichtag-filter --list-tags 40
 """
 
 
@@ -80,7 +80,7 @@ def warn_after_scan(flagged, stats) -> None:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="animetag-filter",
+        prog="immichtag-filter",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         description=(
             "Filter already-tagged images by their .xmp tags and copy the matches to an "
@@ -127,7 +127,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--dir",
         default=None,
-        help=f"Directory to scan (default: $ANIMETAG_DIR, else {config.DEFAULT_ROOT})",
+        help=f"Directory to scan (default: $IMMICHTAG_DIR, else {config.DEFAULT_ROOT})",
     )
     parser.add_argument(
         "--max-images",

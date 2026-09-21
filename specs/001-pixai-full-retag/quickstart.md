@@ -11,7 +11,7 @@ Behaviour is defined in [contracts/cli.md](./contracts/cli.md), [contracts/sidec
 - An Immich API key belonging to the admin user, with the permissions `asset.read`, `asset.update`, `job.create`, `job.read`, `tag.read` and `tag.delete`:
 
   ```toml
-  # ~/.config/animetag/config.toml  (chmod 600)
+  # ~/.config/immichtag/config.toml  (chmod 600)
   [immich]
   url = "http://127.0.0.1:2283"
   api_key = "<key>"
@@ -28,7 +28,7 @@ Behaviour is defined in [contracts/cli.md](./contracts/cli.md), [contracts/sidec
 ## 1. Dry run on the real library (read-only)
 
 ```bash
-uv run animetag --dry-run
+uv run immichtag --dry-run
 ```
 
 **Expect**: `87969 images: N new, ~87957 to re-tag (… legacy, 0 outdated), 0 current.` and an ETA of about 13–15 h. The model is not loaded and no file changes.
@@ -40,26 +40,26 @@ T=$(mktemp -d)
 rsync -a --include='*/' --include='*.jpg' --include='*.jpg.xmp' --exclude='*' \
   "/Users/paul/docker/immich/library/upload/259c78e3-e823-494b-9269-6d06e657298c/d5/" "$T/"
 rm "$(ls $T/*/*.jpg | head -1).xmp"               # make one image NEW
-uv run animetag --dir "$T" --no-immich
+uv run immichtag --dir "$T" --no-immich
 ```
 
 **Expect**:
 - The NEW image is processed first.
-- A backup is announced before any overwrite, and `animetag-backup list --dir "$T"` shows it.
-- Every sidecar has `animetag:model="pixai-labs/pixai-tagger-v1.0"`, exactly one `rating/*`, and a `TagsList` of type `rdf:Seq`.
+- A backup is announced before any overwrite, and `immichtag-backup list --dir "$T"` shows it.
+- Every sidecar has `immichtag:model="pixai-labs/pixai-tagger-v1.0"`, exactly one `rating/*`, and a `TagsList` of type `rdf:Seq`.
 - No `tag/bangs` appears anywhere; `parody/*` appears on images with a known character.
 - Running the command again reports `0 to re-tag` and exits immediately (SC-002 resume).
 
 ## 3. Interruption and atomicity (FR-005, FR-006)
 
 ```bash
-uv run animetag --dir "$T" --no-immich --overwrite &  sleep 20; kill -INT %1
-uv run animetag --dir "$T" --no-immich
+uv run immichtag --dir "$T" --no-immich --overwrite &  sleep 20; kill -INT %1
+uv run immichtag --dir "$T" --no-immich
 ```
 
 **Expect**:
 - The second run processes only the remainder.
-- `find "$T" -name '*animetag-tmp'` prints nothing.
+- `find "$T" -name '*immichtag-tmp'` prints nothing.
 - Every sidecar parses.
 
 ## 4. Foreign tags and Immich-rewritten sidecars (FR-009, the reader rules)
@@ -74,10 +74,10 @@ Copy the fixture `tests/fixtures/immich_rewritten.xmp` (the exiftool output capt
 ## 5. Filtering and export (FR-022 – FR-027)
 
 ```bash
-uv run animetag-filter --dir "$T" -f "fate/grand_order" --dry-run
-uv run animetag-filter --dir "$T" -f "bangs" --dry-run            # legacy/unknown warning
-uv run animetag-filter --dir "$T" -x "rating/explicit" -n 5 -o "$T/out" --copy-sidecar
-uv run animetag-web --dir "$T"
+uv run immichtag-filter --dir "$T" -f "fate/grand_order" --dry-run
+uv run immichtag-filter --dir "$T" -f "bangs" --dry-run            # legacy/unknown warning
+uv run immichtag-filter --dir "$T" -x "rating/explicit" -n 5 -o "$T/out" --copy-sidecar
+uv run immichtag-web --dir "$T"
 ```
 
 **Expect**:
@@ -91,7 +91,7 @@ uv run animetag-web --dir "$T"
 
 ## 6. Single writer (FR-010)
 
-While `animetag-web --dir "$T"` is running a tagging job, run `uv run animetag --dir "$T" --overwrite`.
+While `immichtag-web --dir "$T"` is running a tagging job, run `uv run immichtag --dir "$T" --overwrite`.
 
 **Expect**: exit code 3 with `another tagging run is active (pid …)`, and no sidecar is written by the second process.
 
@@ -100,23 +100,23 @@ While `animetag-web --dir "$T"` is running a tagging job, run `uv run animetag -
 The re-tag of a handful of real library images needs no copy, because it is exactly what the full run will do:
 
 ```bash
-uv run animetag-immich status
-uv run animetag-immich cleanup --dry-run       # preview first: nothing is deleted
-uv run animetag --limit 20                     # re-tags the first 20 queue items, syncs, then deletes the previewed empty tags
+uv run immichtag-sync status
+uv run immichtag-sync cleanup --dry-run       # preview first: nothing is deleted
+uv run immichtag --limit 20                     # re-tags the first 20 queue items, syncs, then deletes the previewed empty tags
 ```
 
 **Expect**:
 - `status` shows the server as reachable, version 3.x and every permission as OK.
 - The cleanup preview lists the ~6,816 legacy `character|…`/`tag|…` tags and the ~238 empty `/` tags, and 0 non-managed tags. Review it before the second command, which deletes them.
 - For those 20 assets, Immich's tags (`GET /api/assets/{id}`) equal their sidecar's `TagsList`.
-- Stopping Immich (`docker stop immich_server`) and tagging again prints `Immich sync pending (N images)` with exit code 0. After `docker start immich_server`, `uv run animetag-immich sync` clears the pending list.
+- Stopping Immich (`docker stop immich_server`) and tagging again prints `Immich sync pending (N images)` with exit code 0. After `docker start immich_server`, `uv run immichtag-sync sync` clears the pending list.
 
 ## 8. Full library (SC-001 – SC-003, SC-005)
 
 ```bash
-uv run animetag                                  # ≈ 13–15 h; safe to Ctrl-C and rerun
-uv run animetag --dry-run                        # expect: 0 to re-tag
-uv run animetag-immich status                    # expect: pending 0, empty managed tags 0
+uv run immichtag                                  # ≈ 13–15 h; safe to Ctrl-C and rerun
+uv run immichtag --dry-run                        # expect: 0 to re-tag
+uv run immichtag-sync status                    # expect: pending 0, empty managed tags 0
 uv run python scripts/verify_immich.py --sample 100   # compares 100 random assets' Immich tags with their sidecars
 uv run python scripts/bench20.py                 # expect ≥ 15/20 with a character, avg general tags 25–45
 ```
@@ -124,11 +124,11 @@ uv run python scripts/bench20.py                 # expect ≥ 15/20 with a chara
 ## Rollback
 
 ```bash
-uv run animetag-backup list
-uv run animetag-backup restore <id>              # restores the WD14 sidecars byte for byte, then syncs Immich
+uv run immichtag-backup list
+uv run immichtag-backup restore <id>              # restores the WD14 sidecars byte for byte, then syncs Immich
 ```
 
-`restore` does not reinstall WD14. Restoring is for inspecting the old tags or undoing a bad run. A later `animetag` run would re-tag the restored files again.
+`restore` does not reinstall WD14. Restoring is for inspecting the old tags or undoing a bad run. A later `immichtag` run would re-tag the restored files again.
 
 ## Clean-up after acceptance
 

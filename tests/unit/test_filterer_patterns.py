@@ -1,7 +1,7 @@
 import pytest
 
-from animetag import vocab
-from animetag.filterer import TagFilter, parse_exclusions, pattern_matches
+from immichtag import vocab
+from immichtag.filterer import TagFilter, parse_exclusions, pattern_matches
 
 SL = "\u2215"
 

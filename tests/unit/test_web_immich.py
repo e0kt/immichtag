@@ -3,7 +3,7 @@ import time
 
 import pytest
 
-from animetag import library, sidecar, web
+from immichtag import library, sidecar, web
 
 from .fake_immich import API_KEY, FakeImmich
 
@@ -30,8 +30,8 @@ def app(tmp_path, fixtures_dir, fake, monkeypatch):
     fake.add_tag("character|abe_nana")
     fake.add_tag("my_album/trip")
     fake.busy_polls = 0
-    monkeypatch.setenv("ANIMETAG_IMMICH_URL", fake.url)
-    monkeypatch.setenv("ANIMETAG_IMMICH_API_KEY", API_KEY)
+    monkeypatch.setenv("IMMICHTAG_URL", fake.url)
+    monkeypatch.setenv("IMMICHTAG_API_KEY", API_KEY)
     state = web.AppState(root)
     state.holder.start()
     state.holder.require()
@@ -75,7 +75,7 @@ def test_sync_job_runs_in_background(app, fake):
 
 
 def test_not_configured(app, monkeypatch):
-    monkeypatch.delenv("ANIMETAG_IMMICH_API_KEY")
+    monkeypatch.delenv("IMMICHTAG_API_KEY")
     assert app.status()["immich"]["configured"] is False
     with pytest.raises(ValueError):
         app.start_sync({})

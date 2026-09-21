@@ -19,8 +19,8 @@ import torch
 from PIL import Image
 from torchvision.transforms import functional as TF
 
-from animetag import vocab
-from animetag.vocab import MODEL_REPO, MODEL_REVISION  # noqa: F401  (re-exported)
+from immichtag import vocab
+from immichtag.vocab import MODEL_REPO, MODEL_REVISION  # noqa: F401  (re-exported)
 
 INPUT_SIZE = 1008
 

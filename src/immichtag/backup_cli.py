@@ -1,25 +1,25 @@
-"""`animetag-backup` — list the sidecar backups a run took, or put one back."""
+"""`immichtag-backup` — list the sidecar backups a run took, or put one back."""
 
 from __future__ import annotations
 
 import argparse
 import sys
 
-from animetag import backup, config, filterer, library
+from immichtag import backup, config, filterer, library
 
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="animetag-backup",
+        prog="immichtag-backup",
         description="List or restore the sidecar backups taken before sidecars were overwritten.",
     )
     sub = parser.add_subparsers(dest="command", required=True)
     for name, text in (("list", "List backups, newest first"), ("restore", "Restore one backup")):
         cmd = sub.add_parser(name, help=text)
         cmd.add_argument("--dir", default=None,
-                         help=f"Library (default: $ANIMETAG_DIR, else {config.DEFAULT_ROOT})")
+                         help=f"Library (default: $IMMICHTAG_DIR, else {config.DEFAULT_ROOT})")
         if name == "restore":
-            cmd.add_argument("id", help="Backup id, as shown by `animetag-backup list`")
+            cmd.add_argument("id", help="Backup id, as shown by `immichtag-backup list`")
             cmd.add_argument("--dry-run", action="store_true", help="Show what would be restored")
             cmd.add_argument("--no-immich", action="store_true", help="Do not sync to Immich afterwards")
     return parser
@@ -62,9 +62,9 @@ def sync_after_restore(root, state_dir, args) -> int:
     if args.no_immich or not settings.configured:
         why = "skipped by --no-immich" if args.no_immich else "no Immich API key configured"
         if pending:
-            print(f"Immich sync pending ({pending} images): {why}. Run: animetag-immich sync")
+            print(f"Immich sync pending ({pending} images): {why}. Run: immichtag-sync sync")
         return 0
-    from animetag import immich, immich_cli
+    from immichtag import immich, immich_cli
 
     print("Syncing to Immich ...")
     immich_cli.print_sync(immich.sync(root, settings, state_dir), dry_run=False)

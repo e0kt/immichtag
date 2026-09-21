@@ -4,7 +4,7 @@ import shutil
 
 import pytest
 
-from animetag import filterer, index, sidecar
+from immichtag import filterer, index, sidecar
 
 SL = "\u2215"
 PROV = sidecar.Provenance("pixai-labs/pixai-tagger-v1.0", "f" * 40, "v1", "2026-01-01T00:00:00Z")

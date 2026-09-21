@@ -32,5 +32,5 @@
 ## Notes
 
 - Iteration 1: 3 [NEEDS CLARIFICATION] markers — FR-015 (style category), FR-015 (meta category), FR-028 (naming).
-- Iteration 2 (2026-09-21): user answered — rename fully with no aliases; do not write the style category; write only a whitelist of the meta category as `meta/`. The new name `animetag` is a placeholder, because the user did not name it. All items pass.
+- Iteration 2 (2026-09-21): user answered — rename fully with no aliases; do not write the style category; write only a whitelist of the meta category as `meta/`. All items pass. The placeholder name `animetag` was later replaced by the user's choice, `immichtag` (2026-09-21).
 - The spec names PixAI Tagger v1.0, Immich, the XMP sidecar and the GPU. The user chose PixAI and Immich, and the sidecar is the shared artifact itself, so these are requirements rather than implementation choices.

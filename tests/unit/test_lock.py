@@ -4,7 +4,7 @@ import time
 
 import pytest
 
-from animetag.library import LockBusy, TaggingLock
+from immichtag.library import LockBusy, TaggingLock
 
 
 def test_second_acquire_in_same_process_is_refused(tmp_path):
@@ -21,7 +21,7 @@ def test_second_acquire_in_same_process_is_refused(tmp_path):
 def test_lock_released_when_holder_dies(tmp_path):
     code = (
         "import sys, time\n"
-        "from animetag.library import TaggingLock\n"
+        "from immichtag.library import TaggingLock\n"
         f"lock = TaggingLock({str(tmp_path)!r}); lock.acquire()\n"
         "print('locked', flush=True)\n"
         "time.sleep(60)\n"

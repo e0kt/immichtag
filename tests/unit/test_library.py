@@ -1,6 +1,6 @@
 import shutil
 
-from animetag import library, sidecar
+from immichtag import library, sidecar
 
 MODEL = "pixai-labs/pixai-tagger-v1.0"
 REVISION = "f33cfdb53c0c90b049bab9ce066eea1118970ef8"
@@ -71,7 +71,7 @@ def test_remove_stale_tmp(tmp_library):
     a, _ = _images(tmp_library)
     stale = a.parent / f".{a.name}.xmp{sidecar.TMP_SUFFIX}"
     stale.write_bytes(b"half")
-    keep = a.parent / "notes.animetag-tmp.txt"
+    keep = a.parent / "notes.immichtag-tmp.txt"
     keep.write_bytes(b"x")
     assert library.remove_stale_tmp(tmp_library) == 1
     assert not stale.exists()

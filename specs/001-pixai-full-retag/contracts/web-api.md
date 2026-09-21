@@ -1,4 +1,4 @@
-# Contract: `animetag-web` HTTP API (loopback only)
+# Contract: `immichtag-web` HTTP API (loopback only)
 
 The API keeps today's routes and shapes unless listed below. All responses are JSON unless noted. Errors return `400 {"error": "..."}`, as today.
 

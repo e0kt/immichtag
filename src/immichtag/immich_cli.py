@@ -1,6 +1,6 @@
-"""`animetag-immich` — make Immich re-read sidecars and drop the tags nothing uses.
+"""`immichtag-sync` — make Immich re-read sidecars and drop the tags nothing uses.
 
-`animetag` already does this after every run; this command is for finishing a sync that
+`immichtag` already does this after every run; this command is for finishing a sync that
 could not run then (Immich down, no key yet), for a whole-library resync, and for
 previewing what the tag cleanup would delete.
 """
@@ -10,22 +10,22 @@ from __future__ import annotations
 import argparse
 import sys
 
-from animetag import config, immich, library
+from immichtag import config, immich, library
 
-NO_KEY = ("Immich API key not configured: set [immich].api_key in ~/.config/animetag/config.toml "
-          "or ANIMETAG_IMMICH_API_KEY")
+NO_KEY = ("Immich API key not configured: set [immich].api_key in ~/.config/immichtag/config.toml "
+          "or IMMICHTAG_API_KEY")
 
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="animetag-immich",
-        description="Sync the library's sidecars into Immich and remove the empty tags animetag manages.",
+        prog="immichtag-sync",
+        description="Sync the library's sidecars into Immich and remove the empty tags immichtag manages.",
     )
     sub = parser.add_subparsers(dest="command", required=True)
 
     def common(cmd):
         cmd.add_argument("--dir", default=None,
-                         help=f"Library (default: $ANIMETAG_DIR, else {config.DEFAULT_ROOT})")
+                         help=f"Library (default: $IMMICHTAG_DIR, else {config.DEFAULT_ROOT})")
         return cmd
 
     sync = common(sub.add_parser("sync", help="Re-read the sidecars written since the last sync"))
@@ -122,7 +122,7 @@ def cmd_status(root, state_dir, settings) -> int:
     try:
         client = immich.ImmichClient(settings)
         major, minor, patch = client.version()
-        note = "" if major == 3 else "  (animetag was built against Immich 3.x)"
+        note = "" if major == 3 else "  (immichtag was built against Immich 3.x)"
         print(f"Server version: {major}.{minor}.{patch}{note}")
     except immich.ImmichError as exc:
         print(f"Not reachable: {exc}", file=sys.stderr)
