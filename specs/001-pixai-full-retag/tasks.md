@@ -77,28 +77,28 @@ description: "Task list for 001-pixai-full-retag"
 
 ### Tests (write first, must fail)
 
-- [ ] T007 [P] Write `tests/unit/test_config.py`, covering:
+- [X] T007 [P] Write `tests/unit/test_config.py`, covering:
   - root resolution order `--dir` > `ANIMETAG_DIR` > default
   - a set `WD14_DIR` alone is ignored and produces exactly one stderr notice (`note: WD14_DIR is no longer read; set ANIMETAG_DIR instead`)
   - `config.toml` values are overridden by `ANIMETAG_IMMICH_URL`, `ANIMETAG_IMMICH_API_KEY` and `ANIMETAG_IMMICH_PATH_MAP`
   - a group- or world-readable config file triggers a warning
   - the api key never appears in `repr(ImmichSettings)`
   - the state dir follows `ANIMETAG_STATE_DIR` and the library id is stable for the same resolved root
-- [ ] T008 [P] Write `tests/unit/test_vocab_core.py`, covering:
+- [X] T008 [P] Write `tests/unit/test_vocab_core.py`, covering:
   - `escape_name("fate/grand_order") == "fate∕grand_order"`, and `unescape_name` reverses it
   - `is_managed()` is true for `tag/x`, `parody/x`, `character|x` and `tag|/_`, and false for `my_album/trip` and `untagged_foreign`
   - `split_tag()` returns `("parody", "fate∕grand_order")` for `parody/fate∕grand_order` and `(None, "my_album∕trip")` for `my_album/trip`
   - `normalize()` folds case, spaces and `-`, and folds `/`→`∕` only inside the name part (`"Parody/Fate/Grand Order"` → `"parody/fate∕grand_order"`)
   - `META_WHITELIST` has exactly the 28 names from research R6
   - `RATING_MAP` maps `g/s/q/e` → `general/sensitive/questionable/explicit`
-- [ ] T009 [P] Write `tests/unit/test_sidecar.py`, covering:
+- [X] T009 [P] Write `tests/unit/test_sidecar.py`, covering:
   - `build_xmp()` → `read_sidecar()` round trip: order preserved, `TagsList` is an `rdf:Seq`, the other two properties are `rdf:Bag` with identical values, and provenance comes back
   - `read_sidecar(immich_rewritten.xmp)` returns tags `[parody/fate∕grand_order, tag/long_hair, my_album/trip]` (TagsList precedence, `hello` never read) and the element-form provenance
   - `read_sidecar(wd14_legacy.xmp)` has no provenance and includes `tag/bangs`
   - a garbage file yields `(tags=[], provenance=None, error=...)`
   - `merge_tags(new_managed, old_tags)` keeps `my_album/trip` after the managed tags and drops old managed tags
   - `write_atomic()` leaves no `*.animetag-tmp` file and survives a simulated crash: monkeypatch `os.replace` to raise, then assert the original bytes are unchanged
-- [ ] T010 [P] Write `tests/unit/test_library.py`, covering:
+- [X] T010 [P] Write `tests/unit/test_library.py`, covering:
   - `classify()` returns NEW (no sidecar), LEGACY (wd14 fixture, or an unreadable sidecar), OUTDATED (provenance with another revision) and CURRENT (matching model+revision, attribute or element form)
   - `tagging_queue()` orders all NEW first, then LEGACY/OUTDATED, each group in scan order, and `overwrite=True` also includes CURRENT
   - `remove_stale_tmp(root)` deletes `.*.xmp.animetag-tmp` files only
@@ -106,14 +106,14 @@ description: "Task list for 001-pixai-full-retag"
 
 ### Implementation
 
-- [ ] T011 [P] Create `src/animetag/config.py`, per research R12:
+- [X] T011 [P] Create `src/animetag/config.py`, per research R12:
   - `DEFAULT_ROOT = Path("/Users/paul/docker/immich/library/upload")`
   - `resolve_root(cli_dir: str | None) -> Path`, which prints the one-time `WD14_DIR` notice
   - `state_dir(root) -> Path`, created on demand, honouring `ANIMETAG_STATE_DIR`
   - `library_id(root)`
   - `ImmichSettings(url, api_key, path_map)`, a dataclass whose `__repr__` masks the key
   - `load_immich_settings()`, reading `~/.config/animetag/config.toml` via `tomllib` with env overrides and warning when the file mode is looser than 0600
-- [ ] T012 [P] Create `src/animetag/vocab.py`:
+- [X] T012 [P] Create `src/animetag/vocab.py`:
   - `MANAGED_PREFIXES`
   - `CATEGORY_PREFIX = {"general": "tag", "character": "character", "copyright": "parody", "meta": "meta", "rating": "rating"}` (style absent)
   - `DEFAULT_THRESHOLDS = {"general": .34, "character": .37, "copyright": .46, "meta": .47}`
@@ -122,7 +122,7 @@ description: "Task list for 001-pixai-full-retag"
   - `RATING_MAP`, `ESCAPE = "∕"`
   - the functions `escape_name`, `unescape_name`, `is_managed`, `split_tag`, `normalize` and `leaf_of`
   - This is the single place the rules in [data-model.md → Tag](./data-model.md#tag) live.
-- [ ] T013 Create `src/animetag/sidecar.py`, which depends on T012. It implements [contracts/sidecar-xmp.md](./contracts/sidecar-xmp.md):
+- [X] T013 Create `src/animetag/sidecar.py`, which depends on T012. It implements [contracts/sidecar-xmp.md](./contracts/sidecar-xmp.md):
   - `Provenance(model, revision, profile, tagged_at)`
   - `SidecarData(tags, provenance, error)`
   - `sidecar_path(image)`
@@ -134,7 +134,7 @@ description: "Task list for 001-pixai-full-retag"
   - `build_xmp(tags, provenance) -> bytes`, using lxml; `TagsList` as `rdf:Seq`, the other two as `rdf:Bag`
   - `merge_tags(managed, old)`
   - `write_atomic(path, data)`: write `.<name>.animetag-tmp` in the same directory, `fsync`, `os.replace`
-- [ ] T014 Create `src/animetag/library.py`, which depends on T013:
+- [X] T014 Create `src/animetag/library.py`, which depends on T013:
   - `IMAGE_EXTS` and `SKIP_DIRS`, moved from the old tagger
   - `image_files(root)`
   - `Status` enum (`NEW`, `LEGACY`, `OUTDATED`, `CURRENT`)
@@ -143,7 +143,7 @@ description: "Task list for 001-pixai-full-retag"
   - `tagging_queue(entries, overwrite=False)`
   - `remove_stale_tmp(root)`
   - `PendingSync(state_dir)` with `append(path, had_sidecar)`, `entries()` and `remove(paths)`, backed by `pending-sync.jsonl`; paths are relative to the root, the file is rewritten atomically on remove
-- [ ] T015 Rewire `src/animetag/filterer.py`, `src/animetag/index.py`, `src/animetag/filter_cli.py` and `src/animetag/web_cli.py` onto the new foundation, so the package imports without the old tagger internals:
+- [X] T015 Rewire `src/animetag/filterer.py`, `src/animetag/index.py`, `src/animetag/filter_cli.py` and `src/animetag/web_cli.py` onto the new foundation, so the package imports without the old tagger internals:
   - `src/animetag/filterer.py`: take `IMAGE_EXTS`/`SKIP_DIRS` from `library`; replace `parse_sidecar`/`LI_RE` with `sidecar.read_tags`; take `normalize` from `vocab` (the category-aware matching comes in US3).
   - `src/animetag/index.py`: use `sidecar.read_tags`.
   - `src/animetag/filter_cli.py` and `src/animetag/web_cli.py`: use `config.resolve_root` instead of `cli.DEFAULT_DIR`.

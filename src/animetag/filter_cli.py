@@ -14,8 +14,7 @@ from pathlib import Path
 
 from tqdm import tqdm
 
-from animetag import filterer
-from animetag.cli import DEFAULT_DIR
+from animetag import config, filterer
 from animetag.filterer import MAX_FILTERS
 
 EPILOG = """\
@@ -86,7 +85,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--dir",
         default=None,
-        help=f"Directory to scan (default: $WD14_DIR, else {DEFAULT_DIR})",
+        help=f"Directory to scan (default: $ANIMETAG_DIR, else {config.DEFAULT_ROOT})",
     )
     parser.add_argument(
         "--max-images",
@@ -141,7 +140,7 @@ def build_parser() -> argparse.ArgumentParser:
 def main() -> int:
     args = build_parser().parse_args()
 
-    root = Path(args.dir).expanduser().resolve() if args.dir else DEFAULT_DIR.resolve()
+    root = config.resolve_root(args.dir)
     if not root.is_dir():
         raise SystemExit(f"Directory does not exist: {root}")
 

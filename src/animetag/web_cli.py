@@ -5,8 +5,7 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-from animetag import web
-from animetag.cli import DEFAULT_DIR
+from animetag import config, web
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -20,7 +19,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--dir",
         default=None,
-        help=f"Directory to index (default: $WD14_DIR, else {DEFAULT_DIR})",
+        help=f"Directory to index (default: $ANIMETAG_DIR, else {config.DEFAULT_ROOT})",
     )
     # None, not the default itself: an explicitly chosen port must never be swapped
     # for a free one, or the server comes up somewhere the user isn't looking.
@@ -42,7 +41,7 @@ def build_parser() -> argparse.ArgumentParser:
 def main() -> int:
     args = build_parser().parse_args()
 
-    root = Path(args.dir).expanduser().resolve() if args.dir else DEFAULT_DIR.resolve()
+    root = config.resolve_root(args.dir)
     if not root.is_dir():
         raise SystemExit(f"Directory does not exist: {root}")
 

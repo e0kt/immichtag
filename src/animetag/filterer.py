@@ -6,7 +6,6 @@ No CLI concerns here — argument parsing and the run loop live in animetag.filt
 from __future__ import annotations
 
 import fnmatch
-import html
 import io
 import os
 import re
@@ -17,12 +16,9 @@ from typing import Iterable, Iterator, List, Sequence, Tuple
 
 from PIL import Image
 
-from animetag.tagger import IMAGE_EXTS, SKIP_DIRS
-
-#: Sidecars written by this tool are machine-generated and uniform, so pulling the
-#: tag text out with a regex is many times faster than an XML parse over a library
-#: of 100k files. parse_sidecar falls back to lxml when this finds nothing.
-LI_RE = re.compile(rb"<rdf:li[^>]*>(.*?)</rdf:li>", re.DOTALL)
+from animetag import sidecar as sidecar_io
+from animetag.library import IMAGE_EXTS, SKIP_DIRS
+from animetag.vocab import normalize
 
 #: A filter is a group of tag patterns, so this caps the groups, not the tags in them.
 MAX_FILTERS = 10
@@ -34,11 +30,6 @@ JPEG_QUALITIES = (92, 85, 80, 75, 70, 65, 60, 55, MIN_JPEG_QUALITY)
 MIN_LONG_SIDE = 640
 DOWNSCALE_STEP = 0.75
 MAX_DOWNSCALES = 8
-
-
-def normalize(tag: str) -> str:
-    """Fold the spelling differences that are never meaningful: case, spaces, dashes."""
-    return tag.strip().lower().replace(" ", "_").replace("-", "_")
 
 
 def parse_size(text: str) -> int:
@@ -145,33 +136,8 @@ def parse_exclusions(specs: Iterable[str]) -> TagFilter | None:
 
 
 def parse_sidecar(sidecar_path: Path) -> List[str]:
-    """Return the deduped tag strings in a sidecar, in file order."""
-    data = sidecar_path.read_bytes()
-    texts = [html.unescape(m.group(1).decode("utf-8", "replace")).strip() for m in LI_RE.finditer(data)]
-    if not texts:
-        texts = _parse_sidecar_xml(data)
-
-    tags: List[str] = []
-    seen = set()
-    for text in texts:
-        if text and text not in seen:
-            seen.add(text)
-            tags.append(text)
-    return tags
-
-
-def _parse_sidecar_xml(data: bytes) -> List[str]:
-    """Fallback for sidecars written by something other than this tool."""
-    from lxml import etree
-
-    try:
-        root = etree.fromstring(data, parser=etree.XMLParser(recover=True))
-    except etree.XMLSyntaxError:
-        return []
-    if root is None:
-        return []
-    rdf = "{http://www.w3.org/1999/02/22-rdf-syntax-ns#}li"
-    return [el.text.strip() for el in root.iter(rdf) if el.text and el.text.strip()]
+    """The deduped tags in a sidecar, in file order (see sidecar.read_sidecar)."""
+    return sidecar_io.read_tags(sidecar_path)
 
 
 def sidecar_files(root: Path) -> Iterator[Path]:
