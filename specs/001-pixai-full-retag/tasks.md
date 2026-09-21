@@ -161,7 +161,7 @@ description: "Task list for 001-pixai-full-retag"
 
 ### Tests for User Story 1
 
-- [ ] T016 [P] [US1] Write `tests/unit/test_tagger_postprocess.py` for `tags_from_probs(probs, names, categories, thresholds, keep_common, include_rating)` with a synthetic vocabulary. It covers:
+- [X] T016 [P] [US1] Write `tests/unit/test_tagger_postprocess.py` for `tags_from_probs(probs, names, categories, thresholds, keep_common, include_rating)` with a synthetic vocabulary. It covers:
   - per-category thresholds
   - style is never emitted
   - meta is emitted only when whitelisted
@@ -171,15 +171,15 @@ description: "Task list for 001-pixai-full-retag"
   - `/` in names is escaped
   - output order character, parody, tag, meta, rating
   - `tag/untagged` when nothing passes
-- [ ] T017 [P] [US1] Write `tests/unit/test_backup.py`, covering:
+- [X] T017 [P] [US1] Write `tests/unit/test_backup.py`, covering:
   - `create_backup()` archives the given sidecars byte for byte, with `manifest.jsonl` (path, size, mtime, sha256) and `meta.json`
   - a second backup skips files whose sha256 is already archived
   - `restore(id)` takes a `restore-safety` backup first and then reproduces the original bytes exactly (SC-007)
   - `list_backups()` returns newest first
-- [ ] T018 [P] [US1] Write `tests/unit/test_lock.py`:
+- [X] T018 [P] [US1] Write `tests/unit/test_lock.py`:
   - `TaggingLock` acquired twice in one process raises `LockBusy` naming the holder's pid and start time.
   - A child process (`subprocess` running `python -c` that holds the lock and is killed) releases it on death.
-- [ ] T019 [P] [US1] Write `tests/unit/test_run.py` against `tmp_library`, with a stub tagger injected into `TaggingRun`. The stub returns fixed probabilities and needs no torch. It covers:
+- [X] T019 [P] [US1] Write `tests/unit/test_run.py` against `tmp_library`, with a stub tagger injected into `TaggingRun`. The stub returns fixed probabilities and needs no torch. It covers:
   - NEW images are processed before LEGACY
   - a backup exists before the first overwrite; setting the cancel event after the first image leaves every sidecar either untouched or complete
   - the resumed run skips CURRENT images
@@ -187,14 +187,14 @@ description: "Task list for 001-pixai-full-retag"
   - a foreign tag in an old sidecar survives
   - an undecodable image is counted as failed and its sidecar is left untouched
   - an image deleted mid-run is counted as skipped
-- [ ] T020 [P] [US1] Write `tests/integration/test_tagger_model.py` (`@pytest.mark.integration`), covering:
+- [X] T020 [P] [US1] Write `tests/integration/test_tagger_model.py` (`@pytest.mark.integration`), covering:
   - after `load_model("mps")` every `blocks.*.attn.freqs_cis` buffer is still `torch.complex64` and the weights are fp16
   - on `tests/fixtures/images/a.jpg`, `tagger.preprocess()` matches the upstream `AutoImageProcessor` output (`trust_remote_code`, same revision) with max abs diff < 1e-5
   - on two images, fp16 probabilities are within 0.01 of an fp32 CPU reference
 
 ### Implementation for User Story 1
 
-- [ ] T021 [P] [US1] Rewrite `src/animetag/tagger.py`, deleting all WD14/ONNX/pandas code. It provides:
+- [X] T021 [P] [US1] Rewrite `src/animetag/tagger.py`, deleting all WD14/ONNX/pandas code. It provides:
   - `select_device(pref)`: `auto` means mps if available, else cpu
   - `load_model(device)`:
     - `AutoModel.from_pretrained(MODEL_REPO, revision=MODEL_REVISION, trust_remote_code=True).eval().to(device)`, then `.half()` on mps
@@ -211,15 +211,15 @@ description: "Task list for 001-pixai-full-retag"
   - `tags_from_probs(...)`, per T016
   - `iter_preprocessed(paths)`: a one-thread `ThreadPoolExecutor` prefetch that yields `(path, tensor | exception)`
   - `profile_name(thresholds)`: `"v1"` when all defaults, else `"custom:g…,c…,p…,m…"`
-- [ ] T022 [P] [US1] Create `src/animetag/backup.py`, per research R10 and [data-model.md → Backup](./data-model.md#backup):
+- [X] T022 [P] [US1] Create `src/animetag/backup.py`, per research R10 and [data-model.md → Backup](./data-model.md#backup):
   - `create_backup(root, sidecars, state_dir, reason) -> str | None`: skips when every sidecar is already archived; writes `backups/<UTC %Y%m%dT%H%M%SZ>/{sidecars.tar.gz, manifest.jsonl, meta.json}`; raises before returning if any write fails
   - `list_backups(state_dir)`
   - `restore(root, backup_id, state_dir, dry_run=False) -> list[Path]`: takes a safety backup, then calls `sidecar.write_atomic` for each file
-- [ ] T023 [P] [US1] Add `TaggingLock` and `LockBusy` to `src/animetag/library.py`, per research R11:
+- [X] T023 [P] [US1] Add `TaggingLock` and `LockBusy` to `src/animetag/library.py`, per research R11:
   - `fcntl.flock(LOCK_EX|LOCK_NB)` on `<state>/tagging.lock`
   - the pid and ISO start time are written into the file for error messages
   - usable as a context manager
-- [ ] T024 [US1] Create `src/animetag/run.py`, which depends on T021–T023. It is the single tagging workflow shared by the CLI and the web:
+- [X] T024 [US1] Create `src/animetag/run.py`, which depends on T021–T023. It is the single tagging workflow shared by the CLI and the web:
   - `RunOptions`: thresholds, `keep_common`, `include_rating`, `overwrite`, `limit`, `device`, `immich` flag
   - `RunProgress`: `total_new`, `total_retag`, `done`, `written`, `failed`, `skipped`, `device`, `eta_seconds` from a moving average of the last 50 images, `backup_id`, `state`, `messages`, `sync`
   - `TaggingRun(root, options, tagger_factory=tagger.load_model, on_progress=None, cancel: threading.Event)` with `run()`, which proceeds as follows:
@@ -232,7 +232,7 @@ description: "Task list for 001-pixai-full-retag"
     7. stop cleanly on `cancel`
     8. call the post-run hook `self.after_write(progress)`, a no-op until US2
   - Returns the final `RunProgress`.
-- [ ] T025 [US1] Rewrite `src/animetag/cli.py` for the `animetag` command per [contracts/cli.md](./contracts/cli.md#animetag--tag-and-re-tag):
+- [X] T025 [US1] Rewrite `src/animetag/cli.py` for the `animetag` command per [contracts/cli.md](./contracts/cli.md#animetag--tag-and-re-tag):
   - Flags and defaults: `--dir --dry-run --limit --overwrite --general-threshold --character-threshold --parody-threshold --meta-threshold --keep-common-tags --no-rating --device --no-immich`. `--rating-threshold` is gone.
   - `--dry-run` prints the counts per status and an ETA at 1.8 img/s (mps) or 0.2 img/s (cpu, marked as an estimate) without loading the model.
   - Print the scan, backup and model lines, then run a tqdm bar driven by `on_progress`.
@@ -240,11 +240,11 @@ description: "Task list for 001-pixai-full-retag"
   - SIGINT sets the cancel event and exits 130 after the run unwinds.
   - `LockBusy` exits 3.
   - Exit 1 when failed > 0 and written == 0.
-- [ ] T026 [P] [US1] Create `src/animetag/backup_cli.py` for `animetag-backup list|restore ID [--dir] [--dry-run] [--no-immich]`, per contracts/cli.md:
+- [X] T026 [P] [US1] Create `src/animetag/backup_cli.py` for `animetag-backup list|restore ID [--dir] [--dry-run] [--no-immich]`, per contracts/cli.md:
   - `list` prints the id, count, compressed size and reason.
   - `restore` calls `backup.restore`, then appends the restored paths to `PendingSync`. The Immich sync is wired in T037.
-- [ ] T027 [US1] Keep `src/animetag/web.py` working. Replace `AppState._run_tagging`'s use of `tagger.load_model`/`tagger.process_one` with a `run.TaggingRun` using default `RunOptions`, and map `RunProgress` onto the existing `TagJob` fields (`total`, `done`, `written`, `skipped`, `failed`, `eta`). The full job state machine comes in US4 (T050).
-- [ ] T028 [US1] Remove every WD14 remnant from `src/animetag/`:
+- [X] T027 [US1] Keep `src/animetag/web.py` working. Replace `AppState._run_tagging`'s use of `tagger.load_model`/`tagger.process_one` with a `run.TaggingRun` using default `RunOptions`, and map `RunProgress` onto the existing `TagJob` fields (`total`, `done`, `written`, `skipped`, `failed`, `eta`). The full job state machine comes in US4 (T050).
+- [X] T028 [US1] Remove every WD14 remnant from `src/animetag/`:
   - `rg -n "onnxruntime|pandas|SmilingWolf|selected_tags|wd-v1-4|process_one|preprocess_image" src/` must return nothing.
   - The old threshold constants (`DEFAULT_PARODY_THRESHOLD`, `DEFAULT_RATING_THRESHOLD`) and the category ids 0/3/4/9 are deleted.
   - Then run `uv run pytest -q`; unit tests pass, and integration tests pass when the model is cached.

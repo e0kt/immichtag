@@ -1,249 +1,184 @@
-"""Core tagging logic: model, inference, tag filtering, XMP sidecar output.
+"""The model: PixAI Tagger v1.0 on the Apple GPU, and probabilities -> sidecar tags.
 
-No CLI concerns here — argument parsing and the run loop live in animetag.cli.
+No I/O beyond reading the image; writing sidecars is run.py's job.
+
+The model code is not vendored — the upstream repo declares no license — so it is
+loaded from the Hub with `trust_remote_code`, pinned to one revision so the code that
+runs can never change underneath us. The revision is also written into every sidecar,
+which is how a later run tells current tags from ones to redo.
 """
 
 from __future__ import annotations
 
-import os
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-from typing import Iterable, List, Sequence, Tuple
+from typing import Callable, Dict, Iterable, Iterator, List, Sequence, Tuple
 
 import numpy as np
-import onnxruntime as ort
-import pandas as pd
-from huggingface_hub import hf_hub_download
-from lxml import etree
+import torch
 from PIL import Image
+from torchvision.transforms import functional as TF
 
-MODEL_REPO = "SmilingWolf/wd-v1-4-convnextv2-tagger-v2"
-MODEL_FILENAME = "model.onnx"
-CSV_FILENAME = "selected_tags.csv"
+from animetag import vocab
 
-IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".webp", ".bmp", ".avif"}
-SKIP_DIRS = {"thumbs", "encoded-video", "profile", "backups", ".git", "__pycache__"}
+MODEL_REPO = "pixai-labs/pixai-tagger-v1.0"
+MODEL_REVISION = "f33cfdb53c0c90b049bab9ce066eea1118970ef8"
+INPUT_SIZE = 1008
 
-# Keep the previous behavior: remove common / low-value / noisy tags from general tags.
-# Use --keep-common-tags if you want more raw Danbooru detail such as 1girl, solo, etc.
-JUNK_TAGS = {
-    "1girl", "1boy", "2girls", "2boys", "3girls", "3boys",
-    "solo", "looking_at_viewer", "simple_background", "white_background",
-    "twitter_username", "letterboxed", "virtual_youtuber",
-    "closed_mouth", "upper_body", "multiple_girls", "multiple_boys",
-    "english_text", "text", "commentary_request", "cropped",
-}
-
-# WD14 / Danbooru selected_tags.csv category ids.
-# 0 = general, 3 = copyright/source, 4 = character, 9 = rating
-GENERAL_CATEGORY = 0
-PARODY_CATEGORY = 3
-CHARACTER_CATEGORY = 4
-RATING_CATEGORY = 9
-
-# Confidence cut-offs. The CLI's flags default to these and the web UI tags with them,
-# so a run started from either place writes the same sidecars.
-DEFAULT_GENERAL_THRESHOLD = 0.40
-DEFAULT_CHARACTER_THRESHOLD = 0.75
-DEFAULT_PARODY_THRESHOLD = 0.60
-DEFAULT_RATING_THRESHOLD = 0.50
+#: Measured on an M5 end to end (decode + inference), for time estimates only.
+EXPECTED_RATE = {"mps": 1.8, "cpu": 0.2}
 
 
-def load_model() -> Tuple[ort.InferenceSession, pd.DataFrame]:
-    model_path = hf_hub_download(repo_id=MODEL_REPO, filename=MODEL_FILENAME)
-    csv_path = hf_hub_download(repo_id=MODEL_REPO, filename=CSV_FILENAME)
-    session = ort.InferenceSession(model_path, providers=["CPUExecutionProvider"])
-    tags_df = pd.read_csv(csv_path)
-    return session, tags_df
+def select_device(preference: str = "auto") -> str:
+    if preference == "cpu":
+        return "cpu"
+    if torch.backends.mps.is_available():
+        return "mps"
+    if preference == "mps":
+        raise RuntimeError("--device mps requested but the Apple GPU is not available")
+    return "cpu"
 
 
-def preprocess_image(image_path: Path, target_size: int) -> np.ndarray:
-    """Resize while preserving aspect ratio, pad to square, and convert RGB -> BGR for WD14."""
-    img = Image.open(image_path).convert("RGBA")
-    bg = Image.new("RGBA", img.size, (255, 255, 255, 255))
-    img = Image.alpha_composite(bg, img).convert("RGB")
+class Tagger:
+    """A loaded model plus the vocabulary its outputs index into."""
 
-    width, height = img.size
-    scale = target_size / max(width, height)
-    new_width = max(1, int(width * scale))
-    new_height = max(1, int(height * scale))
-    img = img.resize((new_width, new_height), Image.Resampling.LANCZOS)
+    def __init__(self, model: torch.nn.Module, device: str) -> None:
+        self.model = model
+        self.device = device
+        self.dtype = torch.float16 if device == "mps" else torch.float32
+        self.names: List[str] = list(model.config.tags)
+        self.categories: List[str] = [
+            category for category, count in model.config.tags_split for _ in range(count)
+        ]
+        if len(self.names) != len(self.categories):
+            raise RuntimeError("model vocabulary and category split disagree")
 
-    padded = Image.new("RGB", (target_size, target_size), (255, 255, 255))
-    left = (target_size - new_width) // 2
-    top = (target_size - new_height) // 2
-    padded.paste(img, (left, top))
+    def preprocess(self, path: Path) -> torch.Tensor:
+        return preprocess(path)
 
-    arr = np.asarray(padded).astype(np.float32)
-    arr = arr[:, :, ::-1]  # RGB -> BGR
-    return np.expand_dims(arr, 0)
+    @torch.inference_mode()
+    def infer(self, pixels: torch.Tensor) -> np.ndarray:
+        """Probabilities for one preprocessed image, as float32 in vocabulary order."""
+        logits = self.model(pixels.to(device=self.device, dtype=self.dtype))
+        return logits.float().sigmoid()[0].cpu().numpy()
 
 
-def infer_tags(
-    session: ort.InferenceSession,
-    tags_df: pd.DataFrame,
-    image_path: Path,
-    general_threshold: float,
-    character_threshold: float,
-    parody_threshold: float,
-    rating_threshold: float,
-) -> Tuple[List[str], List[str], List[str], List[str]]:
-    input_name = session.get_inputs()[0].name
-    input_shape = session.get_inputs()[0].shape
-    target_size = int(input_shape[1])
+def load_model(device: str = "auto") -> Tagger:
+    from transformers import AutoModel
+    from transformers.utils import logging as hf_logging
 
-    image = preprocess_image(image_path, target_size)
-    probs = session.run(None, {input_name: image})[0][0]
+    hf_logging.disable_progress_bar()  # its per-weight bar would interleave with ours
+    device = select_device(device)
+    model = AutoModel.from_pretrained(MODEL_REPO, revision=MODEL_REVISION, trust_remote_code=True)
+    # .to(device) first, then .half(). Never .to(dtype=...): that also casts the complex
+    # RoPE buffers (freqs_cis) to a real dtype, silently dropping their imaginary part —
+    # the model still runs and returns plausible-looking nonsense.
+    model = model.eval().to(device)
+    if device == "mps":
+        model = model.half()
+    rope = [buf for name, buf in model.named_buffers() if name.endswith("freqs_cis")]
+    if not rope or not all(buf.is_complex() for buf in rope):
+        raise RuntimeError("PixAI RoPE buffers lost their complex dtype while loading")
+    return Tagger(model, device)
 
-    names = tags_df["name"].tolist()
-    categories = tags_df["category"].tolist()
 
-    rating_tags: List[str] = []
-    parody_tags: List[str] = []
-    character_tags: List[str] = []
-    general_tags: List[str] = []
+def preprocess(path: Path) -> torch.Tensor:
+    """The model's own processor, reimplemented: keep the aspect ratio, bilinear resize so
+    the long side is 1008, center-pad with 0, normalize to [-1, 1]. Transparency is
+    composited onto white first."""
+    with Image.open(path) as img:
+        if img.mode != "RGB":
+            img = img.convert("RGBA")
+            canvas = Image.new("RGBA", img.size, (255, 255, 255))
+            canvas.alpha_composite(img)
+            img = canvas.convert("RGB")
+        else:
+            img.load()
+        tensor = TF.to_tensor(img)
 
+    height, width = tensor.shape[-2:]
+    if height != INPUT_SIZE or width != INPUT_SIZE:
+        ratio = min(INPUT_SIZE / height, INPUT_SIZE / width)
+        new_h, new_w = int(height * ratio), int(width * ratio)
+        pad_h, pad_w = INPUT_SIZE - new_h, INPUT_SIZE - new_w
+        tensor = TF.resize(tensor, [new_h, new_w])
+        tensor = TF.pad(tensor, [pad_w // 2, pad_h // 2, pad_w - pad_w // 2, pad_h - pad_h // 2], 0)
+    tensor = TF.normalize(tensor, [0.5, 0.5, 0.5], [0.5, 0.5, 0.5])
+    return tensor.unsqueeze(0)
+
+
+def iter_preprocessed(
+    preprocess_fn: Callable[[Path], object], paths: Iterable[Path]
+) -> Iterator[Tuple[Path, object]]:
+    """(path, tensor or the exception it raised), decoding the next image while the GPU
+    works on the current one."""
+    paths = list(paths)
+    if not paths:
+        return
+
+    def safe(path: Path):
+        try:
+            return preprocess_fn(path)
+        except Exception as exc:  # reported per image by the caller
+            return exc
+
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        pending = pool.submit(safe, paths[0])
+        for index, path in enumerate(paths):
+            result = pending.result()
+            if index + 1 < len(paths):
+                pending = pool.submit(safe, paths[index + 1])
+            yield path, result
+
+
+def tags_from_probs(
+    probs: np.ndarray,
+    names: Sequence[str],
+    categories: Sequence[str],
+    thresholds: Dict[str, float] | None = None,
+    keep_common: bool = False,
+    include_rating: bool = True,
+) -> List[str]:
+    """Managed sidecar tags for one image: character, parody, tag, meta, then one rating.
+
+    Within a category the most confident tag comes first. Style (artist names) is never
+    written; meta only when whitelisted; rating is the single most likely one.
+    """
+    if not (len(probs) == len(names) == len(categories)):
+        raise ValueError("probabilities, names and categories differ in length")
+    limits = {**vocab.DEFAULT_THRESHOLDS, **(thresholds or {})}
+
+    buckets: Dict[str, List[Tuple[float, str]]] = {"character": [], "copyright": [], "general": [], "meta": []}
+    best_rating: Tuple[float, str] | None = None
     for name, category, prob in zip(names, categories, probs):
-        if category == RATING_CATEGORY and prob >= rating_threshold:
-            rating_tags.append(name)
-        elif category == PARODY_CATEGORY and prob >= parody_threshold:
-            parody_tags.append(name)
-        elif category == CHARACTER_CATEGORY and prob >= character_threshold:
-            character_tags.append(name)
-        elif category == GENERAL_CATEGORY and prob >= general_threshold:
-            general_tags.append(name)
-
-    return rating_tags, parody_tags, character_tags, general_tags
-
-
-def dedupe_keep_order(tags: Iterable[str]) -> List[str]:
-    result: List[str] = []
-    seen = set()
-    for tag in tags:
-        if tag not in seen:
-            seen.add(tag)
-            result.append(tag)
-    return result
-
-
-def filter_general_tags(tags: Sequence[str], remove_common_tags: bool = True) -> List[str]:
-    filtered: List[str] = []
-    for tag in tags:
-        if tag.startswith("score_"):
+        prob = float(prob)
+        if category == "rating":
+            if best_rating is None or prob > best_rating[0]:
+                best_rating = (prob, name)
             continue
-        if remove_common_tags and tag in JUNK_TAGS:
+        if category not in buckets or prob < limits[category]:
             continue
-        filtered.append(tag)
-    return dedupe_keep_order(filtered)
+        if category == "general" and not keep_common and name in vocab.JUNK_TAGS:
+            continue
+        if category == "meta" and name not in vocab.META_WHITELIST:
+            continue
+        buckets[category].append((prob, name))
+
+    tags: List[str] = []
+    for category in ("character", "copyright", "general", "meta"):
+        prefix = vocab.CATEGORY_PREFIX[category]
+        tags.extend(vocab.managed_tag(prefix, name) for _, name in sorted(buckets[category], key=lambda p: -p[0]))
+    if not tags:
+        tags.append("tag/untagged")
+    if include_rating and best_rating is not None:
+        short = best_rating[1].split(":", 1)[-1]
+        tags.append(f"rating/{vocab.RATING_MAP.get(short, short)}")
+    return tags
 
 
-def build_xmp(final_tags: Sequence[str]) -> bytes:
-    nsmap = {
-        "x": "adobe:ns:meta/",
-        "rdf": "http://www.w3.org/1999/02/22-rdf-syntax-ns#",
-        "lr": "http://ns.adobe.com/lightroom/1.0/",
-        "digiKam": "http://www.digikam.org/ns/1.0/",
-        "dc": "http://purl.org/dc/elements/1.1/",
-    }
-
-    xmpmeta = etree.Element("{adobe:ns:meta/}xmpmeta", nsmap=nsmap)
-    rdf = etree.SubElement(xmpmeta, "{http://www.w3.org/1999/02/22-rdf-syntax-ns#}RDF")
-    desc = etree.SubElement(rdf, "{http://www.w3.org/1999/02/22-rdf-syntax-ns#}Description")
-
-    bags = []
-
-    # Lightroom / Immich-style hierarchical tags.
-    hierarchical = etree.SubElement(desc, "{http://ns.adobe.com/lightroom/1.0/}HierarchicalSubject")
-    bags.append(etree.SubElement(hierarchical, "{http://www.w3.org/1999/02/22-rdf-syntax-ns#}Bag"))
-
-    # digiKam tag list, also useful for Immich sidecar import.
-    digikam = etree.SubElement(desc, "{http://www.digikam.org/ns/1.0/}TagsList")
-    bags.append(etree.SubElement(digikam, "{http://www.w3.org/1999/02/22-rdf-syntax-ns#}Bag"))
-
-    # Standard dc:subject for extra compatibility with XMP readers.
-    subject = etree.SubElement(desc, "{http://purl.org/dc/elements/1.1/}subject")
-    bags.append(etree.SubElement(subject, "{http://www.w3.org/1999/02/22-rdf-syntax-ns#}Bag"))
-
-    for tag in dedupe_keep_order(final_tags):
-        for bag in bags:
-            li = etree.SubElement(bag, "{http://www.w3.org/1999/02/22-rdf-syntax-ns#}li")
-            li.text = tag
-
-    return etree.tostring(
-        xmpmeta,
-        pretty_print=True,
-        xml_declaration=True,
-        encoding="UTF-8",
-    )
-
-
-def image_files(root: Path) -> Iterable[Path]:
-    for dirpath, dirnames, filenames in os.walk(root):
-        dirnames[:] = [d for d in dirnames if d not in SKIP_DIRS]
-        for filename in filenames:
-            path = Path(dirpath) / filename
-            if path.suffix.lower() in IMAGE_EXTS:
-                yield path
-
-
-def make_sidecar_path(image_path: Path) -> Path:
-    # Immich-style sidecar: image.jpg -> image.jpg.xmp
-    return image_path.with_suffix(image_path.suffix + ".xmp")
-
-
-def is_untagged(image_path: Path) -> bool:
-    """A "new" image is one with no sidecar next to it yet."""
-    return not make_sidecar_path(image_path).exists()
-
-
-def process_one(
-    image_path: Path,
-    session: ort.InferenceSession,
-    tags_df: pd.DataFrame,
-    general_threshold: float,
-    character_threshold: float,
-    parody_threshold: float,
-    rating_threshold: float,
-    overwrite: bool,
-    keep_common_tags: bool,
-    include_rating: bool,
-) -> str:
-    xmp_path = make_sidecar_path(image_path)
-    if xmp_path.exists() and not overwrite:
-        return "skipped"
-
-    rating_tags, parody_tags, character_tags, general_tags = infer_tags(
-        session=session,
-        tags_df=tags_df,
-        image_path=image_path,
-        general_threshold=general_threshold,
-        character_threshold=character_threshold,
-        parody_threshold=parody_threshold,
-        rating_threshold=rating_threshold,
-    )
-
-    general_tags = filter_general_tags(
-        general_tags,
-        remove_common_tags=not keep_common_tags,
-    )
-
-    final_tags: List[str] = []
-
-    # User-requested additions: character names and parody/source names.
-    for tag in dedupe_keep_order(character_tags):
-        final_tags.append(f"character/{tag}")
-
-    for tag in dedupe_keep_order(parody_tags):
-        final_tags.append(f"parody/{tag}")
-
-    for tag in general_tags:
-        final_tags.append(f"tag/{tag}")
-
-    if include_rating:
-        for tag in dedupe_keep_order(rating_tags):
-            final_tags.append(f"rating/{tag}")
-
-    if not final_tags:
-        final_tags.append("tag/untagged")
-
-    xmp_path.write_bytes(build_xmp(final_tags))
-    return "written"
+def profile_name(thresholds: Dict[str, float]) -> str:
+    """"v1" for the default thresholds, else a readable record of what was used."""
+    limits = {**vocab.DEFAULT_THRESHOLDS, **thresholds}
+    if limits == vocab.DEFAULT_THRESHOLDS:
+        return "v1"
+    return "custom:g{general:.2f},c{character:.2f},p{copyright:.2f},m{meta:.2f}".format(**limits)

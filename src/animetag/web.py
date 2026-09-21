@@ -32,7 +32,7 @@ from urllib.parse import parse_qs, urlparse
 
 from PIL import Image
 
-from animetag import filterer, tagger
+from animetag import filterer, library, run, sidecar
 from animetag.index import IndexHolder, LibraryIndex
 
 STATIC_DIR = Path(__file__).parent / "web"
@@ -99,7 +99,7 @@ class TagJob:
 
     @property
     def active(self) -> bool:
-        return self.state in ("scanning", "loading", "running")
+        return self.state not in ("finished", "cancelled", "error", "refused")
 
     def as_dict(self) -> Dict[str, Any]:
         eta = None
@@ -314,7 +314,8 @@ class AppState:
     def untagged_count(self) -> Dict[str, Any]:
         """How many images a tagging run would take on right now."""
         root = self.holder.root
-        return {"count": sum(1 for path in tagger.image_files(root) if tagger.is_untagged(path))}
+        return {"count": sum(1 for path in library.image_files(root)
+                             if not sidecar.sidecar_path(path).exists())}
 
     def tagging(self) -> Dict[str, Any]:
         job = self.tag_job
@@ -333,58 +334,32 @@ class AppState:
         return {"job": job.as_dict()}
 
     def _run_tagging(self, job: TagJob, root: Path) -> None:
-        outcome = "finished"
-        try:
-            # The CLI's selection: an image is new when no sidecar sits next to it.
-            todo = [path for path in tagger.image_files(root) if tagger.is_untagged(path)]
-            job.total = len(todo)
-            if not todo:
-                job.state = outcome
-                return
+        def on_progress(progress: run.RunProgress) -> None:
+            job.total = progress.total
+            job.done = progress.done
+            job.written = progress.written
+            job.skipped = progress.skipped
+            job.failed = progress.failed
+            job.messages = progress.messages
+            job.error = progress.error
+            if progress.state == "running" and job.started is None:
+                job.started = time.monotonic()
+            # Final states are set below, after the index rebuild has been started.
+            if progress.active:
+                job.state = progress.state
 
-            job.state = "loading"
-            session, tags_df = tagger.load_model()
-            job.state = "running"
-            job.started = time.monotonic()
+        tagging = run.TaggingRun(root, run.RunOptions(), on_progress=on_progress, cancel=job.cancel)
+        progress = tagging.run()
+        on_progress(progress)
 
-            for image_path in todo:
-                if job.cancel.is_set():
-                    outcome = "cancelled"
-                    break
-                try:
-                    result = tagger.process_one(
-                        image_path=image_path,
-                        session=session,
-                        tags_df=tags_df,
-                        general_threshold=tagger.DEFAULT_GENERAL_THRESHOLD,
-                        character_threshold=tagger.DEFAULT_CHARACTER_THRESHOLD,
-                        parody_threshold=tagger.DEFAULT_PARODY_THRESHOLD,
-                        rating_threshold=tagger.DEFAULT_RATING_THRESHOLD,
-                        overwrite=False,
-                        keep_common_tags=False,
-                        include_rating=True,
-                    )
-                    if result == "written":
-                        job.written += 1
-                    else:
-                        job.skipped += 1  # tagged meanwhile, e.g. by a CLI run
-                except Exception as exc:
-                    job.failed += 1
-                    job.messages.append(f"{image_path.name}: {exc}")
-                finally:
-                    job.done += 1
-        except Exception as exc:
-            outcome = "error"
-            job.error = str(exc)
-
-        if job.written:
+        if progress.written:
             # The new sidecars are invisible until the index is rebuilt. A rebuild already
             # under way may have walked past them, so let it finish, then start another.
             self.holder.ready.wait()
             self.reindex()
         # Only now: the page reloads its index when it sees the run end, and must not
         # catch the old index still marked ready.
-        job.state = outcome
+        job.state = progress.state
 
     # -- misc ----------------------------------------------------------------
 

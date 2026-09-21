@@ -156,7 +156,7 @@ scanning → locking ─(lock busy)→ refused
 
 **Rules:**
 - A backup is complete before the first byte of any sidecar is replaced in that run. If writing the backup fails, the run aborts before touching anything.
-- A file whose `sha256` appears in an earlier manifest is not archived again.
+- A file whose `(path, sha256)` pair appears in an earlier manifest is not archived again. The path is part of the key, because two images can have byte-identical sidecars.
 - Restoring first takes a safety backup of the current sidecars (`reason: restore-safety`), then writes each archived file back atomically and appends it to the pending sync list.
 
 ---

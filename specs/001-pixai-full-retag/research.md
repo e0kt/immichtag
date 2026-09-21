@@ -181,7 +181,7 @@ If the deprecated endpoint disappears in a future Immich version (HTTP 404), the
 ## R10. Backup and restore (FR-007)
 
 **Decision**: Before the first overwrite in a run, write `backups/<UTC timestamp>.tar.gz` into the state directory (R12). It contains every sidecar the run is about to overwrite, byte for byte, with archive paths relative to the library root. A `manifest.jsonl` records each file's path, size, mtime and SHA-256.
-- Files whose SHA-256 is already in an earlier backup are skipped, so resuming an interrupted re-tag does not re-archive the same legacy files.
+- A file is skipped when the same **(path, SHA-256)** pair is already in an earlier backup, so resuming an interrupted re-tag does not re-archive the same legacy files. The key must include the path: two images can have byte-identical sidecars (same WD14 tag list), and keying on content alone would leave the second one restorable from no backup. This was found during implementation.
 - `animetag-backup list` shows the backups. `animetag-backup restore <id> [--dry-run]` writes the files back atomically (R5), then marks them pending for Immich sync.
 
 **Sizing**: The average sidecar is 4.6 KB (2,000 sampled), so the full library is about 405 MB raw. XML with a repetitive vocabulary compresses about 10×, so roughly 40 MB.

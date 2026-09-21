@@ -8,6 +8,8 @@ never disagree with the files: no sidecar is NEW, a sidecar without our provenan
 from __future__ import annotations
 
 import datetime as dt
+import errno
+import fcntl
 import json
 import os
 from enum import Enum
@@ -142,3 +144,50 @@ class PendingSync:
 
     def __len__(self) -> int:
         return len(self.entries())
+
+
+class LockBusy(RuntimeError):
+    """Another tagging run holds the library's lock."""
+
+
+class TaggingLock:
+    """One writer per library, across processes: the CLI and the web server can never
+    tag the same library at once. `flock` is released by the kernel when the holder dies,
+    so a crash never leaves a stale lock behind."""
+
+    FILENAME = "tagging.lock"
+
+    def __init__(self, state_dir: Path) -> None:
+        self.path = Path(state_dir) / self.FILENAME
+        self._fd: int | None = None
+
+    def acquire(self) -> "TaggingLock":
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        fd = os.open(self.path, os.O_RDWR | os.O_CREAT, 0o644)
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except OSError as exc:
+            holder = os.pread(fd, 200, 0).decode("utf-8", "replace").strip()
+            os.close(fd)
+            if exc.errno not in (errno.EWOULDBLOCK, errno.EAGAIN):
+                raise
+            raise LockBusy(f"another tagging run is active ({holder or 'unknown holder'})") from None
+        os.ftruncate(fd, 0)
+        os.pwrite(fd, f"pid {os.getpid()}, started {_now()}".encode(), 0)
+        self._fd = fd
+        return self
+
+    def release(self) -> None:
+        if self._fd is not None:
+            try:
+                os.ftruncate(self._fd, 0)
+                fcntl.flock(self._fd, fcntl.LOCK_UN)
+            finally:
+                os.close(self._fd)
+                self._fd = None
+
+    def __enter__(self) -> "TaggingLock":
+        return self.acquire()
+
+    def __exit__(self, *exc) -> None:
+        self.release()
