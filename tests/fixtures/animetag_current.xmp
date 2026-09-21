@@ -1,0 +1,40 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<x:xmpmeta xmlns:x="adobe:ns:meta/">
+  <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+    <rdf:Description rdf:about="" xmlns:animetag="http://ns.animetag.local/1.0/" xmlns:digiKam="http://www.digikam.org/ns/1.0/" xmlns:lr="http://ns.adobe.com/lightroom/1.0/" xmlns:dc="http://purl.org/dc/elements/1.1/" animetag:model="pixai-labs/pixai-tagger-v1.0" animetag:revision="f33cfdb53c0c90b049bab9ce066eea1118970ef8" animetag:profile="v1" animetag:taggedAt="2026-09-22T03:14:15Z">
+      <digiKam:TagsList>
+        <rdf:Seq>
+          <rdf:li>character/jeanne_d'arc_alter_(fate)</rdf:li>
+          <rdf:li>parody/fate∕grand_order</rdf:li>
+          <rdf:li>parody/fate_(series)</rdf:li>
+          <rdf:li>tag/long_hair</rdf:li>
+          <rdf:li>meta/official_art</rdf:li>
+          <rdf:li>rating/sensitive</rdf:li>
+          <rdf:li>my_album/trip</rdf:li>
+        </rdf:Seq>
+      </digiKam:TagsList>
+      <lr:HierarchicalSubject>
+        <rdf:Bag>
+          <rdf:li>character/jeanne_d'arc_alter_(fate)</rdf:li>
+          <rdf:li>parody/fate∕grand_order</rdf:li>
+          <rdf:li>parody/fate_(series)</rdf:li>
+          <rdf:li>tag/long_hair</rdf:li>
+          <rdf:li>meta/official_art</rdf:li>
+          <rdf:li>rating/sensitive</rdf:li>
+          <rdf:li>my_album/trip</rdf:li>
+        </rdf:Bag>
+      </lr:HierarchicalSubject>
+      <dc:subject>
+        <rdf:Bag>
+          <rdf:li>character/jeanne_d'arc_alter_(fate)</rdf:li>
+          <rdf:li>parody/fate∕grand_order</rdf:li>
+          <rdf:li>parody/fate_(series)</rdf:li>
+          <rdf:li>tag/long_hair</rdf:li>
+          <rdf:li>meta/official_art</rdf:li>
+          <rdf:li>rating/sensitive</rdf:li>
+          <rdf:li>my_album/trip</rdf:li>
+        </rdf:Bag>
+      </dc:subject>
+    </rdf:Description>
+  </rdf:RDF>
+</x:xmpmeta>

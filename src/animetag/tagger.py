@@ -1,6 +1,6 @@
 """Core tagging logic: model, inference, tag filtering, XMP sidecar output.
 
-No CLI concerns here — argument parsing and the run loop live in wd14.cli.
+No CLI concerns here — argument parsing and the run loop live in animetag.cli.
 """
 
 from __future__ import annotations

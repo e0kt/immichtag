@@ -39,29 +39,29 @@ description: "Task list for 001-pixai-full-retag"
 
 **Purpose**: Version control, the rename, dependencies and the test scaffolding.
 
-- [ ] T001 Initialize git in `/Users/paul/programming/wd14`:
+- [X] T001 Initialize git in `/Users/paul/programming/wd14`:
   - Add `.pytest_cache/` and `*.egg-info/` to `.gitignore`.
   - Run `git init && git add -A && git commit -m "Baseline before animetag migration"`, so the rename and every later change can be reviewed and reverted.
-- [ ] T002 Move the package `src/wd14/` → `src/animetag/` (`git mv`) and delete `src/animetag/__pycache__/`.
+- [X] T002 Move the package `src/wd14/` → `src/animetag/` (`git mv`) and delete `src/animetag/__pycache__/`.
   - Replace every `wd14` module reference in `src/animetag/*.py` (`from wd14 import …`, `from wd14.x import …`, `wd14.cli`) with `animetag`.
   - Rewrite the docstrings in `src/animetag/__init__.py` ("animetag — anime image tagger → Immich-compatible XMP sidecars") and `src/animetag/__main__.py`.
   - At this point the code still runs WD14; only the names change.
-- [ ] T003 Rewrite `pyproject.toml`:
+- [X] T003 Rewrite `pyproject.toml`:
   - Metadata: `name = "animetag"`, a new description, `requires-python = ">=3.11,<3.14"`.
   - Dependencies: keep `huggingface-hub>=0.24`, `lxml>=5.0`, `numpy>=1.24`, `pillow>=10.0`, `tqdm>=4.66`; remove `onnxruntime` and `pandas`; add `torch>=2.4`, `torchvision>=0.19`, `transformers>=4.46`, `timm>=1.0`, `safetensors>=0.4`. Keep the comment explaining version floors, not pins.
   - `[project.scripts]`: `animetag = "animetag.cli:main"`, `animetag-filter = "animetag.filter_cli:main"`, `animetag-web = "animetag.web_cli:main"`, `animetag-immich = "animetag.immich_cli:main"`, `animetag-backup = "animetag.backup_cli:main"`.
   - Build: `[tool.hatch.build.targets.wheel] packages = ["src/animetag"]`; a `[dependency-groups] dev = ["pytest>=8"]`.
   - Pytest: `[tool.pytest.ini_options]` with `testpaths = ["tests"]` and `markers = ["integration: needs the cached PixAI model and an Apple GPU"]`.
-- [ ] T004 Regenerate `uv.lock` and the environment with `uv lock && uv sync` from the repository root, then check the result:
+- [X] T004 Regenerate `uv.lock` and the environment with `uv lock && uv sync` from the repository root, then check the result:
   - `uv run python -c "import torch, transformers, timm; assert torch.backends.mps.is_available()"` succeeds.
   - `uv run python -c "import onnxruntime"` fails.
   - Record the resolved versions in the commit message.
-- [ ] T005 [P] Create `tests/__init__.py` (empty), `tests/unit/__init__.py`, `tests/integration/__init__.py` and `tests/conftest.py`. The conftest provides:
+- [X] T005 [P] Create `tests/__init__.py` (empty), `tests/unit/__init__.py`, `tests/integration/__init__.py` and `tests/conftest.py`. The conftest provides:
   - a `fixtures_dir` fixture pointing to `tests/fixtures`
   - a `tmp_library` fixture that copies `tests/fixtures/images/*` into `tmp_path/lib/<uuid-like>/ab/cd/` and returns the root
   - an autouse fixture that sets `ANIMETAG_STATE_DIR` to `tmp_path/state`, so tests never touch the real state dir. `config.py` must honour this override (T011).
   - a `pytest_collection_modifyitems` hook that skips `@pytest.mark.integration` tests unless `~/.cache/huggingface/hub/models--pixai-labs--pixai-tagger-v1.0/snapshots/f33cfdb53c0c90b049bab9ce066eea1118970ef8/model.safetensors` exists and `torch.backends.mps.is_available()` is true.
-- [ ] T006 [P] Create the test fixtures in `tests/fixtures/`:
+- [X] T006 [P] Create the test fixtures in `tests/fixtures/`:
   - `tests/fixtures/wd14_legacy.xmp`: a copy of one real sidecar from `/Users/paul/docker/immich/library/upload/**/*.jpg.xmp`, containing `tag/bangs` and `rating/sensitive`, three `rdf:Bag`s and no provenance.
   - `tests/fixtures/animetag_current.xmp`: the exact example in [contracts/sidecar-xmp.md](./contracts/sidecar-xmp.md), including the foreign tag `my_album/trip`.
   - `tests/fixtures/immich_rewritten.xmp`: the exiftool-rewritten form from research R5, with the full 40-hex revision. Provenance is written as child elements in their own `rdf:Description`; it has `dc:description/rdf:Alt/rdf:li` = `hello`, `xmp:Rating` 0, a `TagsList` `rdf:Seq` with `parody/fate∕grand_order`, `tag/long_hair` and `my_album/trip`, and stale `HierarchicalSubject`/`dc:subject` bags without `my_album/trip`.

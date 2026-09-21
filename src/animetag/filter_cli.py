@@ -1,6 +1,6 @@
 """Command line entry point for the tag filter.
 
-`uv run wd14-filter --filter blue_hair,long_hair --out ./picked` scans the library
+`uv run animetag-filter --filter blue_hair,long_hair --out ./picked` scans the library
 for tagged images matching the filters and copies them out, shrinking anything over
 the size limit on the way.
 """
@@ -14,32 +14,32 @@ from pathlib import Path
 
 from tqdm import tqdm
 
-from wd14 import filterer
-from wd14.cli import DEFAULT_DIR
-from wd14.filterer import MAX_FILTERS
+from animetag import filterer
+from animetag.cli import DEFAULT_DIR
+from animetag.filterer import MAX_FILTERS
 
 EPILOG = """\
 examples:
   # one filter, three tags: images having all of them
-  wd14-filter -f "blue_hair,long_hair,school_uniform" -o ./picked
+  animetag-filter -f "blue_hair,long_hair,school_uniform" -o ./picked
 
   # two filters: an image matching EITHER one is taken
-  wd14-filter -f "character/hatsune_miku" -f "parody/k-on!" -o ./picked
+  animetag-filter -f "character/hatsune_miku" -f "parody/k-on!" -o ./picked
 
   # exclude within one filter with a leading '-', glob with '*', cap the output
-  wd14-filter -f "cat_ears,-rating/explicit,blue_*" -n 200 -o ./picked
+  animetag-filter -f "cat_ears,-rating/explicit,blue_*" -n 200 -o ./picked
 
   # -x vetoes across every filter, so neither group can bring explicit images in
-  wd14-filter -f "cat_ears" -f "character/hatsune_miku" -x "rating/explicit,monochrome" -o ./picked
+  animetag-filter -f "cat_ears" -f "character/hatsune_miku" -x "rating/explicit,monochrome" -o ./picked
 
   # see what tags the library actually has before writing a filter
-  wd14-filter --list-tags 40
+  animetag-filter --list-tags 40
 """
 
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="wd14-filter",
+        prog="animetag-filter",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         description=(
             "Filter already-tagged images by their .xmp tags and copy the matches to an "

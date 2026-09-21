@@ -1,6 +1,6 @@
 """Core selection logic for the tag filter: read sidecars, match tags, copy/compress.
 
-No CLI concerns here — argument parsing and the run loop live in wd14.filter_cli.
+No CLI concerns here — argument parsing and the run loop live in animetag.filter_cli.
 """
 
 from __future__ import annotations
@@ -17,7 +17,7 @@ from typing import Iterable, Iterator, List, Sequence, Tuple
 
 from PIL import Image
 
-from wd14.tagger import IMAGE_EXTS, SKIP_DIRS
+from animetag.tagger import IMAGE_EXTS, SKIP_DIRS
 
 #: Sidecars written by this tool are machine-generated and uniform, so pulling the
 #: tag text out with a regex is many times faster than an XML parse over a library

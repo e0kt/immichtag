@@ -1,17 +1,17 @@
-"""Command line entry point for the web UI: `uv run wd14-web`."""
+"""Command line entry point for the web UI: `uv run animetag-web`."""
 
 from __future__ import annotations
 
 import argparse
 from pathlib import Path
 
-from wd14 import web
-from wd14.cli import DEFAULT_DIR
+from animetag import web
+from animetag.cli import DEFAULT_DIR
 
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="wd14-web",
+        prog="animetag-web",
         description=(
             "Browser UI for the library: tag new images, pick tags with autocomplete, "
             "see the matches as thumbnails, and export them to a folder."

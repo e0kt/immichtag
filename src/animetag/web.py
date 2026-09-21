@@ -1,12 +1,12 @@
 """A local web UI for the tag filter.
 
-`uv run wd14-web` builds the sidecar index once, serves a page on 127.0.0.1 and opens
+`uv run animetag-web` builds the sidecar index once, serves a page on 127.0.0.1 and opens
 it. Everything the CLI takes as flags is a control on that page, plus the two things a
 terminal cannot give you: thumbnails of what a filter actually selects, and a match
 count that updates as you type.
 
 The page can also run the tagger over images that have no sidecar yet — the same
-selection and thresholds as `uv run wd14` — and rebuilds the index when it is done, so
+selection and thresholds as `uv run animetag` — and rebuilds the index when it is done, so
 new uploads go from untagged to filterable without a terminal.
 
 Stdlib http.server on purpose — this is a personal tool on loopback, and a web
@@ -32,8 +32,8 @@ from urllib.parse import parse_qs, urlparse
 
 from PIL import Image
 
-from wd14 import filterer, tagger
-from wd14.index import IndexHolder, LibraryIndex
+from animetag import filterer, tagger
+from animetag.index import IndexHolder, LibraryIndex
 
 STATIC_DIR = Path(__file__).parent / "web"
 #: Nothing well-known lives here. Still collidable, which is why serve() can move.
@@ -412,7 +412,7 @@ class AppState:
 
 def make_handler(state: AppState) -> type:
     class Handler(BaseHTTPRequestHandler):
-        server_version = "wd14-web"
+        server_version = "animetag-web"
         protocol_version = "HTTP/1.1"
 
         # -- plumbing --------------------------------------------------------
@@ -584,11 +584,11 @@ def bind(host: str, port: int, handler: type, search: int = 0) -> ThreadingHTTPS
     if search:
         raise SystemExit(
             f"Ports {port}-{port + search} on {host} are all in use{detail}.\n"
-            f"Free one, or pick another with:  uv run wd14-web --port 9000"
+            f"Free one, or pick another with:  uv run animetag-web --port 9000"
         )
     raise SystemExit(
         f"Port {port} on {host} is already in use{detail}.\n"
-        f"Pick another with:  uv run wd14-web --port {port + 1}"
+        f"Pick another with:  uv run animetag-web --port {port + 1}"
     )
 
 
@@ -606,7 +606,7 @@ def serve(
     if httpd.server_address[1] != port:
         print(f"Port {port} was busy, using {httpd.server_address[1]} instead.")
     url = f"http://{host}:{httpd.server_address[1]}/"
-    print(f"wd14-web serving {root}")
+    print(f"animetag-web serving {root}")
     print(f"  {url}   (ctrl-c to stop)")
 
     if open_browser:

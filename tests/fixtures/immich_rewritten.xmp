@@ -1,0 +1,54 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<x:xmpmeta xmlns:x='adobe:ns:meta/' x:xmptk='Image::ExifTool 13.59'>
+<rdf:RDF xmlns:rdf='http://www.w3.org/1999/02/22-rdf-syntax-ns#'>
+
+ <rdf:Description rdf:about=''
+  xmlns:animetag='http://ns.animetag.local/1.0/'>
+  <animetag:model>pixai-labs/pixai-tagger-v1.0</animetag:model>
+  <animetag:profile>v1</animetag:profile>
+  <animetag:revision>f33cfdb53c0c90b049bab9ce066eea1118970ef8</animetag:revision>
+  <animetag:taggedAt>2026-09-22T03:14:15Z</animetag:taggedAt>
+ </rdf:Description>
+
+ <rdf:Description rdf:about=''
+  xmlns:dc='http://purl.org/dc/elements/1.1/'>
+  <dc:description>
+   <rdf:Alt>
+    <rdf:li xml:lang='x-default'>hello</rdf:li>
+   </rdf:Alt>
+  </dc:description>
+  <dc:subject>
+   <rdf:Bag>
+    <rdf:li>parody/fate∕grand_order</rdf:li>
+    <rdf:li>tag/long_hair</rdf:li>
+   </rdf:Bag>
+  </dc:subject>
+ </rdf:Description>
+
+ <rdf:Description rdf:about=''
+  xmlns:digiKam='http://www.digikam.org/ns/1.0/'>
+  <digiKam:TagsList>
+   <rdf:Seq>
+    <rdf:li>parody/fate∕grand_order</rdf:li>
+    <rdf:li>tag/long_hair</rdf:li>
+    <rdf:li>my_album/trip</rdf:li>
+   </rdf:Seq>
+  </digiKam:TagsList>
+ </rdf:Description>
+
+ <rdf:Description rdf:about=''
+  xmlns:lr='http://ns.adobe.com/lightroom/1.0/'>
+  <lr:HierarchicalSubject>
+   <rdf:Bag>
+    <rdf:li>parody/fate∕grand_order</rdf:li>
+    <rdf:li>tag/long_hair</rdf:li>
+   </rdf:Bag>
+  </lr:HierarchicalSubject>
+ </rdf:Description>
+
+ <rdf:Description rdf:about=''
+  xmlns:xmp='http://ns.adobe.com/xap/1.0/'>
+  <xmp:Rating>0</xmp:Rating>
+ </rdf:Description>
+</rdf:RDF>
+</x:xmpmeta>

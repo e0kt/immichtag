@@ -1,6 +1,6 @@
 """Command line entry point.
 
-`uv run wd14` with no arguments tags every NEW image in the default library —
+`uv run animetag` with no arguments tags every NEW image in the default library —
 "new" meaning no .xmp sidecar sits next to it yet. Everything else is an override.
 """
 
@@ -12,7 +12,7 @@ from pathlib import Path
 
 from tqdm import tqdm
 
-from wd14 import tagger
+from animetag import tagger
 
 #: Scanned when --dir is not given. Set WD14_DIR to point somewhere else without
 #: editing this file; --dir still wins over both.
@@ -23,7 +23,7 @@ DEFAULT_DIR = Path(
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="wd14",
+        prog="animetag",
         description=(
             "WD14 anime tagger -> Immich-compatible XMP sidecars with character and "
             "parody/source tags. With no arguments, tags every image under "
@@ -127,7 +127,7 @@ def main() -> int:
                 progress.write(f"Failed: {image_path} -> {exc}")
     except KeyboardInterrupt:
         # Sidecars are written per image, so an interrupted run is simply a partial one:
-        # the next `uv run wd14` picks up exactly where this one stopped.
+        # the next `uv run animetag` picks up exactly where this one stopped.
         progress.close()
         print(f"\nInterrupted. written={written}, skipped={skipped}, failed={failed}")
         return 130

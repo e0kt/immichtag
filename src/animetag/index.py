@@ -14,8 +14,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable, Dict, List, Sequence, Set, Tuple
 
-from wd14 import filterer
-from wd14.filterer import Match, TagFilter
+from animetag import filterer
+from animetag.filterer import Match, TagFilter
 
 
 @dataclass
