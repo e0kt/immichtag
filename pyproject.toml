@@ -1,0 +1,28 @@
+[project]
+name = "wd14"
+version = "0.1.0"
+description = "WD14 anime tagger -> Immich-compatible XMP sidecars"
+requires-python = ">=3.10,<3.14"
+dependencies = [
+    "huggingface-hub>=0.24",
+    "lxml>=5.0",
+    "numpy>=1.24",
+    # Version FLOOR, not a pin: wheel availability tracks the Python version, and a
+    # hard pin here is what breaks the install on the next interpreter bump.
+    "onnxruntime>=1.19",
+    "pandas>=2.0",
+    "pillow>=10.0",
+    "tqdm>=4.66",
+]
+
+[project.scripts]
+wd14 = "wd14.cli:main"
+wd14-filter = "wd14.filter_cli:main"
+wd14-web = "wd14.web_cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/wd14"]

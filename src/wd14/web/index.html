@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>wd14 filter</title>
+  <link rel="stylesheet" href="/app.css">
+</head>
+<body>
+<div id="app">
+  <header>
+    <h1>wd14 filter</h1>
+    <span class="root" id="root" title=""></span>
+    <span class="stat" id="stat"></span>
+    <button class="btn" id="tag-new" title="Run the tagger over every image that has no .xmp sidecar yet" disabled>Tag new images</button>
+    <button class="btn" id="rescan">Rescan</button>
+  </header>
+
+  <aside>
+    <section>
+      <div class="section-head">
+        <h2>Filters</h2>
+        <span class="hint" id="filter-count"></span>
+      </div>
+      <div id="filters"></div>
+      <div class="row">
+        <button class="btn" id="add-filter" style="flex:1">+ Add filter</button>
+      </div>
+      <div class="seg" id="match-mode" style="margin-top:8px">
+        <button data-mode="any" class="on">Match ANY filter</button>
+        <button data-mode="all">Match ALL</button>
+      </div>
+      <p class="hint" id="match-hint">An image is taken if it matches any one filter.</p>
+    </section>
+
+    <section>
+      <div class="section-head">
+        <h2>Never include</h2>
+        <span class="hint" id="exclude-count"></span>
+      </div>
+      <div class="filter" id="exclude-all"></div>
+      <p class="hint">
+        Tags no image may carry, whichever filter matched it — unlike a shift-added tag,
+        which only rules that one filter.
+      </p>
+    </section>
+
+    <section>
+      <div class="section-head"><h2>Output</h2></div>
+
+      <label class="lbl">Folder</label>
+      <div class="row">
+        <input type="text" id="out-dir" placeholder="~/Pictures/picked" style="flex:1">
+        <button class="btn" id="browse">Browse…</button>
+      </div>
+
+      <div class="row">
+        <div class="field">
+          <label class="lbl">Max images</label>
+          <input type="number" id="max-images" min="1" placeholder="all">
+        </div>
+        <div class="field">
+          <label class="lbl">Max file size</label>
+          <input type="text" id="max-size" value="1MB">
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="field">
+          <label class="lbl">Pick which</label>
+          <select id="order">
+            <option value="scan">In scan order</option>
+            <option value="random">Random</option>
+            <option value="newest">Newest first</option>
+            <option value="oldest">Oldest first</option>
+          </select>
+        </div>
+        <div class="field" id="seed-field" style="display:none">
+          <label class="lbl">Seed</label>
+          <input type="number" id="seed" placeholder="none">
+        </div>
+      </div>
+
+      <label class="check"><input type="checkbox" id="compress" checked> Compress images over the size limit</label>
+      <label class="check"><input type="checkbox" id="copy-sidecar"> Also copy the .xmp sidecars</label>
+
+      <button class="btn primary" id="export" style="margin-top:6px">Export</button>
+      <p class="hint" id="export-hint"></p>
+    </section>
+  </aside>
+
+  <main>
+    <div class="results-bar">
+      <span class="count" id="count">—</span>
+      <span style="flex:1"></span>
+      <button class="btn" id="reshuffle" style="display:none">Reshuffle</button>
+    </div>
+    <div class="grid" id="grid"></div>
+    <div class="empty" id="empty" hidden></div>
+    <div id="sentinel" style="height:1px"></div>
+  </main>
+</div>
+
+<div class="viewer" id="viewer" hidden>
+  <img id="viewer-img" alt="">
+  <div class="side">
+    <h3 id="viewer-name"></h3>
+    <p>Click a tag to add it to filter <span id="viewer-target">1</span>. Shift-click to exclude it.</p>
+    <div class="taglist" id="viewer-tags"></div>
+  </div>
+</div>
+
+<div class="jobs">
+  <div class="job" id="tag-panel" hidden>
+    <div class="top">
+      <strong id="tag-title">Tagging…</strong>
+      <span id="tag-pct" class="hint"></span>
+    </div>
+    <div class="bar"><span id="tag-bar"></span></div>
+    <div class="detail" id="tag-detail"></div>
+    <div class="actions" id="tag-actions"></div>
+  </div>
+
+  <div class="job" id="export-panel" hidden>
+    <div class="top">
+      <strong id="export-title">Exporting…</strong>
+      <span id="export-pct" class="hint"></span>
+    </div>
+    <div class="bar"><span id="export-bar"></span></div>
+    <div class="detail" id="export-detail"></div>
+    <div class="actions" id="export-actions"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast" hidden></div>
+
+<script src="/app.js"></script>
+</body>
+</html>
