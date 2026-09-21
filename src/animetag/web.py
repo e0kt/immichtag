@@ -83,42 +83,39 @@ class ExportJob:
 
 @dataclass
 class TagJob:
-    """One run of the tagger over the images with no sidecar yet. One at a time."""
+    """One tagging run (run.TaggingRun) started from the page. One at a time."""
 
     id: str
-    total: int = 0
-    done: int = 0
-    written: int = 0
-    skipped: int = 0
-    failed: int = 0
-    state: str = "scanning"  # scanning | loading | running | finished | cancelled | error
-    error: str | None = None
-    #: time.monotonic() when inference began, for the time-left estimate.
-    started: float | None = None
-    messages: List[str] = field(default_factory=list)
     cancel: threading.Event = field(default_factory=threading.Event)
+    progress: run.RunProgress = field(default_factory=run.RunProgress)
+    #: Mirrors progress.state, except that the final state is only set once the index
+    #: rebuild has started — the page reloads its index when it sees the run end.
+    state: str = "scanning"
 
     @property
     def active(self) -> bool:
         return self.state not in ("finished", "cancelled", "error", "refused")
 
     def as_dict(self) -> Dict[str, Any]:
-        eta = None
-        if self.state == "running" and self.started is not None and self.done:
-            elapsed = time.monotonic() - self.started
-            eta = round(elapsed / self.done * (self.total - self.done))
+        p = self.progress
+        sync = p.sync.as_dict() if hasattr(p.sync, "as_dict") else p.sync
         return {
             "id": self.id,
             "state": self.state,
             "active": self.active,
-            "total": self.total,
-            "done": self.done,
-            "written": self.written,
-            "skipped": self.skipped,
-            "failed": self.failed,
-            "eta": eta,
-            "error": self.error,
-            "messages": self.messages[-20:],
+            "totalNew": p.total_new,
+            "totalRetag": p.total_retag,
+            "total": p.total,
+            "done": p.done,
+            "written": p.written,
+            "skipped": p.skipped,
+            "failed": p.failed,
+            "device": p.device,
+            "eta": p.eta_seconds if self.state == "running" and p.done else None,
+            "backupId": p.backup_id,
+            "sync": sync,
+            "error": p.error,
+            "messages": p.messages[-20:],
         }
 
 
@@ -150,6 +147,8 @@ class AppState:
         self.thumbs: Dict[Tuple[int, int], bytes] = {}
         self.thumb_lock = threading.Lock()
         self.sync_job: SyncJob | None = None
+        #: None = the real model; tests put a stub here.
+        self.tagger_factory = None
         self.sync_lock = threading.Lock()
         self._reachable: Tuple[float, bool] = (0.0, False)
 
@@ -366,22 +365,17 @@ class AppState:
 
     def _run_tagging(self, job: TagJob, root: Path) -> None:
         def on_progress(progress: run.RunProgress) -> None:
-            job.total = progress.total
-            job.done = progress.done
-            job.written = progress.written
-            job.skipped = progress.skipped
-            job.failed = progress.failed
-            job.messages = progress.messages
-            job.error = progress.error
-            if progress.state == "running" and job.started is None:
-                job.started = time.monotonic()
-            # Final states are set below, after the index rebuild has been started.
             if progress.active:
                 job.state = progress.state
 
-        tagging = run.TaggingRun(root, run.RunOptions(), on_progress=on_progress, cancel=job.cancel)
+        state_dir = self._state_dir()
+        tagging = run.TaggingRun(
+            root, run.RunOptions(), on_progress=on_progress, cancel=job.cancel, state_dir=state_dir,
+            sync_hook=run.immich_sync_hook(root, state_dir),
+            **({"tagger_factory": self.tagger_factory} if self.tagger_factory else {}),
+        )
+        job.progress = tagging.progress
         progress = tagging.run()
-        on_progress(progress)
 
         if progress.written:
             # The new sidecars are invisible until the index is rebuilt. A rebuild already

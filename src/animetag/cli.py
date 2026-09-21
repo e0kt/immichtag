@@ -85,19 +85,6 @@ def dry_run(root, args) -> int:
     return EXIT_OK
 
 
-def make_sync_hook(root, state_dir):
-    """The post-run Immich sync, or None when there is nothing to sync with."""
-    settings = config.load_immich_settings()
-    if not settings.configured:
-        return None
-    from animetag import immich  # imported lazily: tagging never needs Immich
-
-    def hook(progress: run.RunProgress):
-        return immich.sync(root, settings, state_dir)
-
-    return hook
-
-
 def print_sync_result(result, pending_count: int) -> None:
     if result is None:
         if pending_count:
@@ -186,7 +173,7 @@ def main() -> int:
         print("\nStopping after the current image (Ctrl-C again to abort) ...", file=sys.stderr)
 
     previous = signal.signal(signal.SIGINT, interrupt)
-    sync_hook = make_sync_hook(root, state_dir) if options.immich else None
+    sync_hook = run.immich_sync_hook(root, state_dir) if options.immich else None
     try:
         tagging = run.TaggingRun(root, options, on_progress=on_progress, cancel=cancel,
                                  state_dir=state_dir, sync_hook=sync_hook)

@@ -603,32 +603,55 @@ function showTagJob(job) {
   $('tag-pct').textContent = job.total ? `${job.done.toLocaleString()} / ${job.total.toLocaleString()}` : '';
 
   const titles = {
-    scanning: 'Looking for new images…',
-    loading: 'Loading the tagger model…',
+    scanning: 'Looking for images to tag…',
+    locking: 'Checking no other run is tagging…',
+    'backing-up': 'Backing up the sidecars about to be replaced…',
+    loading: 'Loading PixAI Tagger…',
     running: 'Tagging…',
-    finished: job.total ? 'Tagging complete' : 'No new images',
+    syncing: 'Syncing to Immich…',
+    finished: job.total ? 'Tagging complete' : 'Nothing to tag',
     cancelled: 'Tagging cancelled',
     error: 'Tagging failed',
+    refused: 'Another tagging run is active',
   };
   $('tag-title').textContent = titles[job.state] || job.state;
 
   // Numbers and fixed words only, so innerHTML is safe; file names go in as text below.
   const bits = [];
-  if (job.total) bits.push(`${job.written.toLocaleString()} tagged`);
-  if (job.skipped) bits.push(`${job.skipped.toLocaleString()} already tagged`);
+  if (job.total) {
+    const scope = [];
+    if (job.totalNew) scope.push(`${job.totalNew.toLocaleString()} new`);
+    if (job.totalRetag) scope.push(`${job.totalRetag.toLocaleString()} re-tag`);
+    bits.push(`${job.written.toLocaleString()} tagged of ${scope.join(' + ')}`);
+  }
+  if (job.skipped) bits.push(`${job.skipped.toLocaleString()} gone meanwhile`);
   if (job.failed) bits.push(`<span class="bad">${job.failed.toLocaleString()} failed</span>`);
+  if (job.device === 'cpu') bits.push('<span class="warn">on CPU — slow</span>');
   if (job.active && job.eta !== null) {
-    bits.push(job.eta < 60 ? 'under a minute left' : `about ${Math.round(job.eta / 60)} min left`);
+    const eta = job.eta;
+    bits.push(eta < 60 ? 'under a minute left'
+      : eta < 5400 ? `about ${Math.round(eta / 60)} min left`
+        : `about ${(eta / 3600).toFixed(1)} h left`);
   }
   const detail = $('tag-detail');
   detail.innerHTML = bits.join(' · ');
-  const problem = job.error || (!job.active && job.messages[job.messages.length - 1]);
-  if (problem) {
-    const line = document.createElement('div');
-    line.className = 'bad';
-    line.textContent = problem;
-    detail.appendChild(line);
+  const lines = [];
+  if (job.backupId) lines.push(['', `Previous sidecars backed up as ${job.backupId}`]);
+  if (job.sync) {
+    const s = job.sync;
+    lines.push(s.ok
+      ? ['', `Immich: ${s.refreshed.toLocaleString()} re-read, ${s.discovered.toLocaleString()} discovered, `
+        + `${s.deletedTags.toLocaleString()} empty tags removed${s.reason ? ` — ${s.reason}` : ''}`]
+      : ['warn', `Immich sync pending: ${s.reason}`]);
   }
+  const problem = job.error || (!job.active && job.messages[job.messages.length - 1]);
+  if (problem) lines.push(['bad', problem]);
+  lines.forEach(([cls, text]) => {
+    const line = document.createElement('div');
+    if (cls) line.className = cls;
+    line.textContent = text;
+    detail.appendChild(line);
+  });
 
   // Rebuilt only when the run starts or ends, so a poll can't swallow a click on Cancel.
   const actions = $('tag-actions');

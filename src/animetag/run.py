@@ -63,6 +63,21 @@ class RunProgress:
         return self.state not in ("finished", "cancelled", "error", "refused")
 
 
+def immich_sync_hook(root: Path, state_dir: Path) -> Callable[[RunProgress], Any] | None:
+    """The post-run Immich sync for `TaggingRun(sync_hook=...)`, or None when no Immich
+    API key is configured (the written images then stay pending)."""
+    settings = config.load_immich_settings()
+    if not settings.configured:
+        return None
+
+    def hook(progress: RunProgress):
+        from animetag import immich  # tagging itself never needs Immich
+
+        return immich.sync(root, settings, state_dir)
+
+    return hook
+
+
 def _now() -> str:
     return dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 

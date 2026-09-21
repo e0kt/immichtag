@@ -414,7 +414,7 @@ description: "Task list for 001-pixai-full-retag"
 
 ### Tests for User Story 4
 
-- [ ] T049 [P] [US4] Write `tests/unit/test_web_tagjob.py` against `AppState` with a stub tagger factory injected into `run.TaggingRun`. It covers:
+- [X] T049 [P] [US4] Write `tests/unit/test_web_tagjob.py` against `AppState` with a stub tagger factory injected into `run.TaggingRun`. It covers:
   - job states progress through `scanning → … → finished`, with `totalNew`/`totalRetag` correct
   - when another process holds `TaggingLock`, the job ends in `refused` with the holder in `error`
   - a second `start_tagging()` attaches to the running job
@@ -422,13 +422,13 @@ description: "Task list for 001-pixai-full-retag"
 
 ### Implementation for User Story 4
 
-- [ ] T050 [US4] Rebuild `TagJob` in `src/animetag/web.py` on `run.TaggingRun` with the full state set from [contracts/web-api.md](./contracts/web-api.md#post-apitag-and-get-apitag):
+- [X] T050 [US4] Rebuild `TagJob` in `src/animetag/web.py` on `run.TaggingRun` with the full state set from [contracts/web-api.md](./contracts/web-api.md#post-apitag-and-get-apitag):
   - states `scanning | locking | backing-up | loading | running | syncing | finished | cancelled | error | refused`
   - fields `totalNew`, `totalRetag`, `device`, `eta`, `backupId`, `sync`
   - cancellation through `RunOptions`' cancel event
   - `LockBusy` maps to `refused`
   - the index is rebuilt after any run with writes, before the state is set final, preserving the existing ordering guarantee in `_run_tagging`
-- [ ] T051 [US4] Update the tag panel in `src/animetag/web/app.js`:
+- [X] T051 [US4] Update the tag panel in `src/animetag/web/app.js`:
   - show new versus re-tag counts, the device (with a CPU warning), the ETA, the backup id and the post-run Immich result line
   - show `refused` with the holder message
   - reattach after a reload, as today
