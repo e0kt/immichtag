@@ -462,8 +462,8 @@ description: "Task list for 001-pixai-full-retag"
   - `rg -n -i "wd14" --glob '!specs/**' --glob '!README.md' .` returns only the `WD14_DIR` notice in `src/immichtag/config.py` and its test.
   - `rg -n "onnxruntime|pandas" src tests pyproject.toml` returns nothing.
   - `uv run immichtag --help`, `immichtag-filter --help`, `immichtag-web --help`, `immichtag-sync --help` and `immichtag-backup --help` all work.
-- [ ] T056 *(Status 2026-09-21: 132 tests pass, including integration; quickstart 1–6 verified on library copies. Scenario 7 is still open: it needs the user's Immich API key.)* Run `uv run pytest -q` over `tests/` (all unit tests, plus integration tests with the model cached), then quickstart scenarios 1–7 end to end, and fix any failures before the full run.
-- [ ] T057 *(Status: waiting for the user.)* Operational step, run by the user, about 13–15 h (scenario 8 in `specs/001-pixai-full-retag/quickstart.md`):
+- [X] T056 *(2026-09-21: 132 tests pass, including integration; quickstart 1–6 verified on library copies. Scenario 7 run on the live Immich 3.2.2: 20 new images tagged, 20/20 Immich tags equal the sidecars, 7,046 empty managed tags removed, 0 non-managed touched.)* Run `uv run pytest -q` over `tests/` (all unit tests, plus integration tests with the model cached), then quickstart scenarios 1–7 end to end, and fix any failures before the full run.
+- [ ] T057 *(Status: full run started 2026-09-21 on the user's instruction.)* Operational step, run by the user, about 13–15 h (scenario 8 in `specs/001-pixai-full-retag/quickstart.md`):
   1. Take a fresh Immich DB backup, then run `uv run immichtag`; it can be resumed.
   2. Verify the success criteria:
      - `uv run immichtag --dry-run` shows 0 to re-tag (SC-001)

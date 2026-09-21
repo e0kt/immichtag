@@ -13,7 +13,7 @@ import argparse
 import random
 import sys
 
-from immichtag import config, immich, library, sidecar
+from immichtag import config, immich, library, sidecar, vocab
 
 
 def main() -> int:
@@ -21,6 +21,8 @@ def main() -> int:
     parser.add_argument("--dir", default=None, help="Library")
     parser.add_argument("--sample", type=int, default=100)
     parser.add_argument("--seed", type=int, default=None)
+    parser.add_argument("--current-only", action="store_true",
+                        help="Only images whose sidecar the current model wrote (i.e. already re-tagged)")
     args = parser.parse_args()
 
     root = config.resolve_root(args.dir)
@@ -39,6 +41,10 @@ def main() -> int:
     by_local = {path_map.to_local(original): asset_id for asset_id, original in assets}
 
     tagged = [image for image in library.image_files(root) if sidecar.sidecar_path(image).exists()]
+    if args.current_only:
+        tagged = [image for image in tagged
+                  if library.classify(image, vocab.MODEL_REPO, vocab.MODEL_REVISION) is library.Status.CURRENT]
+        print(f"{len(tagged)} images carry current sidecars")
     sample = random.Random(args.seed).sample(tagged, min(args.sample, len(tagged)))
 
     mismatches = missing = 0
