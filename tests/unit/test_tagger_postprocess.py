@@ -88,3 +88,9 @@ def test_profile_name():
 def test_mismatched_lengths_rejected():
     with pytest.raises(ValueError):
         tags_from_probs(np.zeros(3, dtype=np.float32), NAMES, CATS)
+
+
+def test_huge_images_are_not_refused():
+    from PIL import Image
+
+    assert Image.MAX_IMAGE_PIXELS is None

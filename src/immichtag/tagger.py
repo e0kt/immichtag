@@ -24,6 +24,11 @@ from immichtag.vocab import MODEL_REPO, MODEL_REVISION  # noqa: F401  (re-export
 
 INPUT_SIZE = 1008
 
+# The library is the user's own images, not untrusted uploads, so Pillow's
+# decompression-bomb guard only ever stops a huge scan or panorama from being tagged
+# (the first full run lost a 223-megapixel image to it).
+Image.MAX_IMAGE_PIXELS = None
+
 #: Measured on an M5 end to end (decode + inference), for time estimates only.
 EXPECTED_RATE = {"mps": 1.8, "cpu": 0.2}
 

@@ -463,7 +463,7 @@ description: "Task list for 001-pixai-full-retag"
   - `rg -n "onnxruntime|pandas" src tests pyproject.toml` returns nothing.
   - `uv run immichtag --help`, `immichtag-filter --help`, `immichtag-web --help`, `immichtag-sync --help` and `immichtag-backup --help` all work.
 - [X] T056 *(2026-09-21: 132 tests pass, including integration; quickstart 1–6 verified on library copies. Scenario 7 run on the live Immich 3.2.2: 20 new images tagged, 20/20 Immich tags equal the sidecars, 7,046 empty managed tags removed, 0 non-managed touched.)* Run `uv run pytest -q` over `tests/` (all unit tests, plus integration tests with the model cached), then quickstart scenarios 1–7 end to end, and fix any failures before the full run.
-- [ ] T057 *(Status: full run started 2026-09-21 on the user's instruction.)* Operational step, run by the user, about 13–15 h (scenario 8 in `specs/001-pixai-full-retag/quickstart.md`):
+- [X] T057 *(Done 2026-09-22. Full run 12 h 59 min at 1.88 img/s: 88,010 written. The 1 failure was a 223 MP image refused by Pillow's decompression-bomb guard; the guard is now lifted and the image is tagged. All 88,033 images are current. 300/300 sampled Immich assets match their sidecars. 0 empty managed tags. 573 tags that were no longer used, e.g. tag/bangs, were removed.)* Operational step, run by the user, about 13–15 h (scenario 8 in `specs/001-pixai-full-retag/quickstart.md`):
   1. Take a fresh Immich DB backup, then run `uv run immichtag`; it can be resumed.
   2. Verify the success criteria:
      - `uv run immichtag --dry-run` shows 0 to re-tag (SC-001)
