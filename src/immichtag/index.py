@@ -38,9 +38,16 @@ class LibraryIndex:
     by_leaf: Dict[str, List[str]] = field(default_factory=dict)
     #: Images whose sidecar was not written by the current model, by status.
     retag: Dict[str, int] = field(default_factory=lambda: {"legacy": 0, "outdated": 0})
+    #: Each image's status value, so a removal can keep `retag` right.
+    statuses: List[str] = field(default_factory=list)
     #: Which rebuild produced this index. Every rebuild reassigns ids, so anything
     #: cached by id — thumbnails, on the server and in the browser — is keyed by it too.
     generation: int = 0
+    #: Ids deleted since this build. They keep their slot, so every other id — and the
+    #: thumbnails cached under it — stays valid; they are just in no posting any more.
+    removed: Set[int] = field(default_factory=set)
+    #: Bumped by every remove(), so the page knows its results are out of date.
+    revision: int = 0
 
     def __post_init__(self) -> None:
         self._expansion_cache: Dict[str, Set[int]] = {}
@@ -50,8 +57,27 @@ class LibraryIndex:
         return len(self.images)
 
     @property
+    def live_count(self) -> int:
+        return len(self.images) - len(self.removed)
+
+    @property
     def tag_count(self) -> int:
-        return len(self.postings)
+        return sum(1 for ids in self.postings.values() if ids)
+
+    def remove(self, ids) -> None:
+        """Drop images from every result without a rebuild (they were deleted)."""
+        gone = set(ids) - self.removed
+        if not gone:
+            return
+        for bucket in self.postings.values():
+            bucket -= gone
+        for image_id in gone:
+            status = self.statuses[image_id] if image_id < len(self.statuses) else None
+            if status in self.retag:
+                self.retag[status] -= 1
+        self._expansion_cache.clear()
+        self.removed |= gone
+        self.revision += 1
 
     def tags_of(self, image_id: int) -> Tuple[str, ...]:
         return self.display_tags[image_id]
@@ -109,9 +135,9 @@ class LibraryIndex:
 
         No filters means everything, so a bare exclusion is a valid selection on its own.
         """
-        everything = range(len(self.images))
+        everything = set(range(len(self.images))) - self.removed
         if not filters:
-            return self._veto(set(everything), exclude)
+            return self._veto(everything, exclude)
 
         groups: List[Set[int]] = []
         for tag_filter in filters:
@@ -187,13 +213,17 @@ class LibraryIndex:
     def tag_counts(self) -> List[Tuple[str, int]]:
         """(display tag, count), most common first. The autocomplete's source."""
         return sorted(
-            ((tag, len(ids)) for tag, ids in self.postings.items()),
+            ((tag, len(ids)) for tag, ids in self.postings.items() if ids),
             key=lambda pair: (-pair[1], pair[0]),
         )
 
 
-def build(root: Path, progress: Callable[[int], None] | None = None) -> LibraryIndex:
-    """Read every sidecar under `root`. Reports progress every 2000 images."""
+def build(root: Path, progress: Callable[[int], None] | None = None,
+          hidden: Set[str] | None = None) -> LibraryIndex:
+    """Read every sidecar under `root`. Reports progress every 2000 images.
+
+    `hidden` holds library-relative POSIX paths to leave out — images sitting in Immich's
+    trash, whose files stay on disk until the trash is emptied."""
     index = LibraryIndex(root=root)
     postings = index.postings
     leaves = index.leaves
@@ -205,6 +235,8 @@ def build(root: Path, progress: Callable[[int], None] | None = None) -> LibraryI
         image = filterer.image_for_sidecar(sidecar_path)
         if image is None:
             continue
+        if hidden and image.relative_to(root).as_posix() in hidden:
+            continue
         data = sidecar.read_sidecar(sidecar_path)
         tags = data.tags
         status = library.status_of(data, vocab.MODEL_REPO, vocab.MODEL_REVISION)
@@ -213,6 +245,7 @@ def build(root: Path, progress: Callable[[int], None] | None = None) -> LibraryI
 
         image_id = len(index.images)
         index.images.append(image)
+        index.statuses.append(status.value)
         index.display_tags.append(tuple(pool.setdefault(tag, tag) for tag in tags))
 
         for tag in tags:
@@ -239,8 +272,10 @@ class IndexHolder:
     `ready` or reports `state` so the page can show a progress line instead of hanging.
     """
 
-    def __init__(self, root: Path) -> None:
+    def __init__(self, root: Path, hidden_provider: Callable[[], Set[str]] | None = None) -> None:
         self.root = root
+        #: Called at the start of each build for the paths to leave out.
+        self.hidden_provider = hidden_provider
         self.index: LibraryIndex | None = None
         self.scanned = 0
         self.state = "idle"  # idle | building | ready | error
@@ -267,7 +302,8 @@ class IndexHolder:
 
     def _run(self, generation: int) -> None:
         try:
-            index = build(self.root, progress=self._on_progress)
+            hidden = self.hidden_provider() if self.hidden_provider else None
+            index = build(self.root, progress=self._on_progress, hidden=hidden)
         except Exception as exc:  # a bad --dir shouldn't take the server down
             self.error = str(exc)
             self.state = "error"

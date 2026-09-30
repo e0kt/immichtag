@@ -99,8 +99,17 @@
     </div>
     <div class="results-bar">
       <span class="count" id="count">—</span>
+      <div class="selection" id="selection-bar" hidden>
+        <span class="sel-count" id="sel-count"></span>
+        <button class="btn" id="sel-all"></button>
+        <button class="btn" id="sel-clear">Clear</button>
+      </div>
       <span style="flex:1"></span>
       <button class="btn" id="reshuffle" style="display:none">Reshuffle</button>
+      <div class="selection" id="selection-actions" hidden>
+        <button class="btn" id="sel-download">Download</button>
+        <button class="btn danger" id="sel-delete">Delete…</button>
+      </div>
     </div>
     <div class="grid" id="grid"></div>
     <div class="empty" id="empty" hidden></div>
@@ -112,6 +121,10 @@
   <img id="viewer-img" alt="">
   <div class="side">
     <h3 id="viewer-name"></h3>
+    <div class="viewer-actions">
+      <a class="btn" id="viewer-download" download>Download</a>
+      <button class="btn danger" id="viewer-delete">Delete…</button>
+    </div>
     <p>Click a tag to add it to filter <span id="viewer-target">1</span>. Shift-click to exclude it.</p>
     <div class="taglist" id="viewer-tags"></div>
   </div>
@@ -138,6 +151,16 @@
     <div class="actions" id="immich-actions"></div>
   </div>
 
+  <div class="job" id="delete-panel" hidden>
+    <div class="top">
+      <strong id="delete-title">Deleting…</strong>
+      <span id="delete-pct" class="hint"></span>
+    </div>
+    <div class="bar"><span id="delete-bar"></span></div>
+    <div class="detail" id="delete-detail"></div>
+    <div class="actions" id="delete-actions"></div>
+  </div>
+
   <div class="job" id="export-panel" hidden>
     <div class="top">
       <strong id="export-title">Exporting…</strong>
@@ -146,6 +169,13 @@
     <div class="bar"><span id="export-bar"></span></div>
     <div class="detail" id="export-detail"></div>
     <div class="actions" id="export-actions"></div>
+  </div>
+</div>
+
+<div class="modal" id="modal" hidden>
+  <div class="modal-box" role="dialog" aria-modal="true">
+    <div id="modal-body"></div>
+    <div class="actions" id="modal-actions"></div>
   </div>
 </div>
 

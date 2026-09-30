@@ -23,6 +23,11 @@ class FakeImmich:
         self.legacy_search = False              # reject the v3.2 search shape with 400
         self.busy_polls = 2                     # GET /api/jobs reports work this many times
         self.page_size_seen: List[int] = []
+        self.trashed: set = set()               # asset ids in Immich's trash
+        self.features = {"trash": True}
+        self.trash_calls: List[dict] = []       # bodies of DELETE /api/assets
+        self.deny_ids: set = set()              # a DELETE naming any of these fails whole
+        self.deny_delete_permission = False
         self._server = None
 
     # -- fixtures --------------------------------------------------------------
@@ -46,6 +51,10 @@ class FakeImmich:
         tag_ids = {self.add_tag(v) for v in tag_values}
         self.assets.append({"id": asset_id, "originalPath": original_path, "tags": tag_ids})
         return asset_id
+
+    def restore(self, asset_id: str) -> None:
+        """What "Restore" in Immich's trash does."""
+        self.trashed.discard(asset_id)
 
     def descendants(self, tag_id: str) -> set:
         out = {tag_id}
@@ -121,8 +130,9 @@ class FakeImmich:
                 return h._reply(400, {"message": "property filter should not exist"})
             size = body.get("size", 250)
             self.page_size_seen.append(size)
+            filter_ = body.get("filter") or {}
             if new_shape:
-                tag_ids = ((body.get("filter") or {}).get("tagIds") or {}).get("any")
+                tag_ids = (filter_.get("tagIds") or {}).get("any")
                 start = int(body.get("cursor") or 0)
             else:
                 tag_ids = body.get("tagIds")
@@ -133,15 +143,37 @@ class FakeImmich:
                 for tag_id in tag_ids:
                     wanted |= self.descendants(tag_id)
                 items = [a for a in items if a["tags"] & wanted]
+            paths = (filter_.get("originalPath") or {}).get("in")
+            if paths is not None:
+                wanted_paths = set(paths)
+                items = [a for a in items if a["originalPath"] in wanted_paths]
+            if "trashedAt" in filter_:
+                assert filter_["trashedAt"] == {"ne": None}, filter_
+                items = [a for a in items if a["id"] in self.trashed]
             page = items[start:start + size]
             more = start + size < len(items)
-            assets = {"items": [{"id": a["id"], "originalPath": a["originalPath"]} for a in page],
+            assets = {"items": [{"id": a["id"], "originalPath": a["originalPath"],
+                                 "isTrashed": a["id"] in self.trashed} for a in page],
                       "count": len(page)}
             if new_shape:
                 assets["nextCursor"] = str(start + size) if more else None
             else:
                 assets["nextPage"] = str(start // size + 2) if more else None
             return h._reply(200, {"assets": assets, "albums": {"items": []}})
+        if path == "/api/server/features" and method == "GET":
+            return h._reply(200, dict(self.features))
+        if path == "/api/assets" and method == "DELETE":
+            self.trash_calls.append(body)   # tests check none has force: true
+            if body.get("force") is True:
+                return h._reply(418, {"message": "immichtag must never delete permanently"})
+            if self.deny_delete_permission:
+                return h._reply(403, {"message": "Missing required permission: asset.delete"})
+            known = {a["id"] for a in self.assets}
+            ids = body.get("ids") or []
+            if any(i in self.deny_ids or i not in known for i in ids):
+                return h._reply(400, {"message": "Not found or no asset.delete access"})
+            self.trashed.update(ids)
+            return h._reply(204)
         if path == "/api/assets/jobs" and method == "POST":
             self.asset_jobs.append(body)
             return h._reply(204)

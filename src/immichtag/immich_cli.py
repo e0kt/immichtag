@@ -143,7 +143,8 @@ def cmd_status(root, state_dir, settings) -> int:
             print(f"  permission {name}: MISSING")
         except immich.ImmichError as exc:
             print(f"  permission {name}: could not check ({exc})")
-    print("  (asset.update, job.create and tag.delete are only exercised by a real sync)")
+    print("  (asset.update, job.create and tag.delete are only exercised by a real sync;")
+    print("   asset.delete only by deleting from immichtag-web)")
 
     print("Counting empty managed tags ...", flush=True)
     plan = immich.plan_cleanup(client.list_tags(), immich.managed_in_use(root))

@@ -50,7 +50,8 @@ def wait(app):
 
 def test_status_reports_immich(app):
     immich = app.status()["immich"]
-    assert immich == {"configured": True, "reachable": True, "pending": 1}
+    assert immich == {"configured": True, "reachable": True, "pending": 1,
+                      "canDelete": True, "deleteReason": None}
 
 
 def test_cleanup_preview_and_confirm(app, fake):

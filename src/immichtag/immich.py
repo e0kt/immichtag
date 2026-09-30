@@ -34,6 +34,7 @@ DISCOVERY_HINT = "discovery needed: Immich → Administration → Jobs → Sidec
 PERMISSIONS = {
     "/api/search/metadata": "asset.read",
     "/api/assets/jobs": "job.create + asset.update",
+    "/api/assets": "asset.delete",
     "/api/jobs/sidecar": "job.create (admin key)",
     "/api/jobs": "job.read (admin key)",
     "/api/tags": "tag.read / tag.delete",
@@ -68,13 +69,16 @@ class ImmichClient:
     JOB_BATCH = 500
 
     def __init__(self, settings: ImmichSettings, *, sleep: Callable[[float], None] = time.sleep,
-                 timeout: float = 30) -> None:
+                 timeout: float = 30, retry: bool = True) -> None:
+        """`retry=False` gives up at the first connection error or 5xx — for callers that
+        have a fallback and should not stall ~20 s on an Immich that is down."""
         if not settings.api_key:
             raise ImmichError("no Immich API key configured")
         self._url = settings.url.rstrip("/")
         self._key = settings.api_key
         self._sleep = sleep
         self._timeout = timeout
+        self._delays = self.RETRY_DELAYS if retry else ()
         self._legacy_search = False
 
     def __repr__(self) -> str:  # never show the key
@@ -86,9 +90,9 @@ class ImmichClient:
         if data is not None:
             headers["Content-Type"] = "application/json"
         last = "no attempt"
-        for attempt in range(len(self.RETRY_DELAYS) + 1):
+        for attempt in range(len(self._delays) + 1):
             if attempt:
-                self._sleep(self.RETRY_DELAYS[attempt - 1])
+                self._sleep(self._delays[attempt - 1])
             request = urllib.request.Request(self._url + path, data=data, method=method, headers=headers)
             try:
                 with urllib.request.urlopen(request, timeout=self._timeout) as response:
@@ -146,6 +150,70 @@ class ImmichClient:
                 page = int(next_page)
             elif not cursor:
                 return
+
+    def assets_by_path(self, remote_paths: Iterable[str]) -> Dict[str, Tuple[str, bool]]:
+        """originalPath -> (id, is trashed) for the given paths; missing paths are absent.
+        Looked up 500 at a time; an older server that rejects the filter shape gets one
+        full listing instead (trashed state then unknown, reported as False)."""
+        paths = list(dict.fromkeys(remote_paths))
+        found: Dict[str, Tuple[str, bool]] = {}
+        if not self._legacy_search:
+            try:
+                for start in range(0, len(paths), self.JOB_BATCH):
+                    chunk = paths[start:start + self.JOB_BATCH]
+                    body = {"filter": {"originalPath": {"in": chunk}}, "size": self.JOB_BATCH}
+                    for item in self._request("POST", "/api/search/metadata", body)["assets"]["items"]:
+                        found[item["originalPath"]] = (item["id"], bool(item.get("isTrashed")))
+                return found
+            except ImmichError as exc:
+                if isinstance(exc, (ImmichAuthError, ImmichUnavailable)) or "HTTP 400" not in str(exc):
+                    raise
+                self._legacy_search = True
+        wanted = set(paths)
+        for asset_id, original in self.iter_assets():
+            if original in wanted:
+                found[original] = (asset_id, False)
+        return found
+
+    def iter_trashed(self) -> Iterator[Tuple[str, str]]:
+        """(id, originalPath) of every asset in the trash. v3.2 search shape only: an
+        older server raises, and the caller keeps what it knew before."""
+        if self._legacy_search:
+            raise ImmichError("this Immich does not support listing the trash")
+        cursor = None
+        while True:
+            body = {"filter": {"trashedAt": {"ne": None}}, "size": self.PAGE_SIZE}
+            if cursor:
+                body["cursor"] = cursor
+            assets = self._request("POST", "/api/search/metadata", body)["assets"]
+            for item in assets["items"]:
+                yield item["id"], item["originalPath"]
+            cursor = assets.get("nextCursor")
+            if not cursor:
+                return
+
+    def features(self) -> dict:
+        """Server feature flags; `trash` says whether deleted assets go to a trash."""
+        return self._request("GET", "/api/server/features") or {}
+
+    def trash(self, ids: List[str]) -> None:
+        """Move assets to Immich's trash — never `force`, which deletes for good. Immich
+        checks access to every id first, so one bad id fails its whole batch."""
+        for start in range(0, len(ids), self.JOB_BATCH):
+            self._request("DELETE", "/api/assets", {"ids": ids[start:start + self.JOB_BATCH], "force": False})
+
+    def trash_each(self, ids: List[str]) -> Dict[str, str | None]:
+        """One request per id, for a batch that failed: id -> None, or why it failed."""
+        outcome: Dict[str, str | None] = {}
+        for asset_id in ids:
+            try:
+                self.trash([asset_id])
+                outcome[asset_id] = None
+            except (ImmichAuthError, ImmichUnavailable):
+                raise
+            except ImmichError as exc:
+                outcome[asset_id] = str(exc)
+        return outcome
 
     def tag_has_assets(self, tag_id: str) -> bool:
         """Does any asset carry this tag or a tag below it? (Immich matches descendants.)"""
@@ -241,6 +309,21 @@ class PathMap:
                 if (root / Path(*parts[cut:])).exists():
                     return cls(remote=str(PurePosixPath(*parts[:cut])), local=root)
         return None
+
+
+def resolve_path_map(client: ImmichClient, settings: ImmichSettings, root: Path,
+                     sample: Iterable[str] | None = None) -> Optional[PathMap]:
+    """The configured path map, else one guessed from `sample` (Immich paths) or, without
+    one, from the first 500 assets Immich lists."""
+    if settings.path_map:
+        return PathMap.parse(settings.path_map)
+    if sample is None:
+        sample = []
+        for _, original in client.iter_assets():
+            sample.append(original)
+            if len(sample) >= 500:
+                break
+    return PathMap.autodetect(sample, root)
 
 
 # -- cleanup ------------------------------------------------------------------------
@@ -414,8 +497,7 @@ def sync(root: Path, settings: ImmichSettings, state_dir: Path, *, all: bool = F
         client = ImmichClient(settings, sleep=sleep)
         phase("mapping")
         assets = list(client.iter_assets())
-        path_map = PathMap.parse(settings.path_map) if settings.path_map else \
-            PathMap.autodetect((p for _, p in assets[:500]), root)
+        path_map = resolve_path_map(client, settings, root, sample=[p for _, p in assets[:500]])
         if path_map is None:
             return SyncResult(ok=False, pending=len(entries),
                               reason="cannot match Immich's paths to this library; set [immich].path_map")

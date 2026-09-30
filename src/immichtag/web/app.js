@@ -24,6 +24,21 @@ const state = {
   immichBusy: false,
   warnings: [],
   retagDismissed: false,
+  generation: null,
+  /** Cards in grid order, for shift-click ranges. */
+  items: [],
+  /**
+   * `ids` mode: exactly these. `all` mode: every match of the current filters except
+   * these — so "select all" covers images the grid has not loaded yet. `key` is the
+   * query the selection belongs to; any other query clears it.
+   */
+  sel: { mode: 'ids', ids: new Set(), except: new Set(), last: null, key: null },
+  viewerItem: null,
+  canDelete: false,
+  deleteReason: null,
+  deleting: false,
+  deleteTargets: null,
+  stateDir: null,
 };
 
 /* ---------------- fetch helpers ---------------- */
@@ -73,6 +88,7 @@ async function pollStatus() {
     return;
   }
 
+  state.stateDir = status.stateDir;
   $('stat').innerHTML =
     `<b>${status.images.toLocaleString()}</b> tagged images · <b>${status.tags.toLocaleString()}</b> tags`;
   renderImmich(status.immich);
@@ -305,6 +321,7 @@ async function runSearch() {
   if (!state.ready) return;
   state.offset = 0;
   state.exhausted = false;
+  state.items = [];
   $('grid').textContent = '';
 
   let data;
@@ -321,6 +338,13 @@ async function runSearch() {
 
   state.total = data.total;
   state.selected = data.selected;
+  state.generation = data.generation;
+  // Reordering keeps a selection; anything that changes which images match drops it.
+  const key = JSON.stringify([payload().filters, state.excludeAll, state.matchAll, data.generation]);
+  if (key !== state.sel.key) {
+    clearSelection();
+    state.sel.key = key;
+  }
   state.warnings = data.warnings || [];
   renderWarnings();
 
@@ -342,6 +366,7 @@ async function runSearch() {
   $('reshuffle').style.display = state.order === 'random' ? '' : 'none';
 
   appendCards(data.items, data.generation);
+  renderSelection();
   state.offset = data.items.length;
   state.exhausted = state.offset >= data.selected;
   fillViewport();
@@ -375,8 +400,12 @@ function appendCards(items, generation) {
   const grid = $('grid');
   items.forEach((item) => {
     item.generation = generation;
+    item.index = state.items.length;
+    state.items.push(item);
     const card = document.createElement('div');
     card.className = 'card';
+    card.dataset.id = String(item.id);
+    card.classList.toggle('selected', isSelected(item.id));
 
     const img = document.createElement('img');
     img.loading = 'lazy';
@@ -389,11 +418,31 @@ function appendCards(items, generation) {
     name.className = 'name';
     name.textContent = item.name;
 
-    card.append(img, name);
+    const download = document.createElement('a');
+    download.className = 'card-dl';
+    download.href = downloadUrl(item);
+    download.download = '';
+    download.title = 'Download original';
+    download.textContent = '\u2193';
+    download.onclick = (event) => event.stopPropagation();
+
+    const check = document.createElement('input');
+    check.type = 'checkbox';
+    check.className = 'card-check';
+    check.title = 'Select (shift-click for a range)';
+    check.checked = isSelected(item.id);
+    check.onclick = (event) => {
+      event.stopPropagation();
+      toggleSelection(item, check.checked, event.shiftKey);
+    };
+
+    card.append(img, name, download, check);
     card.onclick = () => openViewer(item);
     grid.appendChild(card);
   });
 }
+
+const downloadUrl = (item) => `/api/download?id=${item.id}&v=${item.generation}`;
 
 /** Keep loading while the grid is shorter than the pane, or scrolling never starts. */
 function fillViewport() {
@@ -408,6 +457,9 @@ function fillViewport() {
 function openViewer(item) {
   $('viewer-img').src = `/api/image?id=${item.id}&v=${item.generation}`;
   $('viewer-name').textContent = item.name;
+  $('viewer-download').href = downloadUrl(item);
+  state.viewerItem = item;
+  updateDeleteButtons();
   $('viewer-target').textContent = String(state.activeFilter + 1);
 
   const host = $('viewer-tags');
@@ -429,6 +481,309 @@ function openViewer(item) {
 function closeViewer() {
   $('viewer').hidden = true;
   $('viewer-img').src = '';
+  state.viewerItem = null;
+}
+
+/* ---------------- selection ---------------- */
+
+function isSelected(id) {
+  const sel = state.sel;
+  return sel.mode === 'all' ? !sel.except.has(id) : sel.ids.has(id);
+}
+
+function selectionCount() {
+  const sel = state.sel;
+  return sel.mode === 'all' ? Math.max(0, state.total - sel.except.size) : sel.ids.size;
+}
+
+function selectionPayload() {
+  const sel = state.sel;
+  return sel.mode === 'all'
+    ? { mode: 'all', query: payload(), except: [...sel.except], generation: state.generation }
+    : { mode: 'ids', ids: [...sel.ids], generation: state.generation };
+}
+
+function clearSelection() {
+  const key = state.sel.key;
+  state.sel = { mode: 'ids', ids: new Set(), except: new Set(), last: null, key };
+  renderSelection();
+}
+
+function setSelected(id, on) {
+  const sel = state.sel;
+  if (sel.mode === 'all') {
+    if (on) sel.except.delete(id); else sel.except.add(id);
+  } else if (on) {
+    sel.ids.add(id);
+  } else {
+    sel.ids.delete(id);
+  }
+}
+
+function toggleSelection(item, on, shift) {
+  const sel = state.sel;
+  if (shift && sel.last !== null) {
+    const [from, to] = [Math.min(sel.last, item.index), Math.max(sel.last, item.index)];
+    state.items.slice(from, to + 1).forEach((other) => setSelected(other.id, on));
+  } else {
+    setSelected(item.id, on);
+  }
+  sel.last = item.index;
+  if (!selectionCount()) clearSelection();
+  renderSelection();
+}
+
+function renderSelection() {
+  const count = selectionCount();
+  $('selection-bar').hidden = count === 0;
+  $('selection-actions').hidden = count === 0;
+  document.body.classList.toggle('selecting', count > 0);
+  $('sel-count').textContent = `${count.toLocaleString()} selected`;
+  const all = $('sel-all');
+  all.textContent = `Select all ${state.total.toLocaleString()} matching`;
+  all.disabled = state.sel.mode === 'all' && state.sel.except.size === 0;
+  document.querySelectorAll('#grid .card').forEach((card) => {
+    const on = isSelected(Number(card.dataset.id));
+    card.classList.toggle('selected', on);
+    const check = card.querySelector('.card-check');
+    if (check) check.checked = on;
+  });
+  updateDeleteButtons();
+}
+
+/** A 409 means the ids on the page belong to an older index; start over from a fresh search. */
+function staleResults(err) {
+  toast(err.message);
+  if (/rescanned/.test(err.message)) runSearch();
+}
+
+/* ---------------- modal ---------------- */
+
+function showModal(nodes, actions) {
+  $('modal-body').replaceChildren(...nodes);
+  const buttons = actions.map(({ label, primary, danger, onclick, disabled }) => {
+    const button = document.createElement('button');
+    button.className = `btn${primary ? ' primary' : ''}${danger ? ' danger' : ''}`;
+    button.textContent = label;
+    button.disabled = !!disabled;
+    button.onclick = onclick;
+    return button;
+  });
+  $('modal-actions').replaceChildren(...buttons);
+  $('modal').hidden = false;
+  return buttons;
+}
+
+function hideModal() {
+  $('modal').hidden = true;
+  $('modal-body').replaceChildren();
+}
+
+function para(text, className) {
+  const p = document.createElement('p');
+  if (className) p.className = className;
+  p.textContent = text;
+  return p;
+}
+
+/* ---------------- download a selection ---------------- */
+
+async function downloadSelection() {
+  let bundle;
+  try {
+    bundle = await postJSON('/api/bundle', selectionPayload());
+  } catch (err) {
+    staleResults(err);
+    return;
+  }
+  const n = bundle.count.toLocaleString();
+  const nodes = [
+    para(`Download ${n} image${bundle.count === 1 ? '' : 's'} (${bundle.size}) as one zip?`),
+    para('Originals, unchanged — the size limit and compression under Output apply only to Export.', 'hint'),
+  ];
+  if (bundle.warn) nodes.push(para('That is a large download and may take a while. The page stays usable meanwhile.', 'warn'));
+  showModal(nodes, [
+    { label: 'Cancel', onclick: hideModal },
+    {
+      label: 'Download',
+      primary: true,
+      onclick: () => {
+        hideModal();
+        window.location.href = bundle.url;  // the browser's download manager takes it from here
+      },
+    },
+  ]);
+}
+
+/* ---------------- delete ---------------- */
+
+function updateDeleteButtons() {
+  const busy = state.deleting ? 'a delete' : state.tagging ? 'tagging' : state.immichBusy ? 'an Immich job'
+    : state.jobId ? 'an export' : null;
+  const reason = !state.canDelete ? (state.deleteReason || 'Immich is not available.')
+    : busy ? `Wait for ${busy} to finish.` : 'Move to Immich’s trash';
+  ['sel-delete', 'viewer-delete'].forEach((id) => {
+    $(id).disabled = !state.canDelete || !!busy;
+    $(id).title = reason;
+  });
+}
+
+async function confirmDelete(selection) {
+  let preview;
+  try {
+    preview = await postJSON('/api/delete/preview', selection);
+  } catch (err) {
+    staleResults(err);
+    return;
+  }
+  const count = preview.count;
+  const n = count.toLocaleString();
+  const nodes = [para(`Delete ${n} image${count === 1 ? '' : 's'}?`, 'modal-title')];
+
+  const strip = document.createElement('div');
+  strip.className = 'sample';
+  preview.sample.forEach((item) => {
+    const img = document.createElement('img');
+    img.src = `/api/thumb?id=${item.id}&v=${item.generation}`;
+    img.alt = item.name;
+    img.title = item.name;
+    strip.appendChild(img);
+  });
+  if (count > preview.sample.length) {
+    const more = document.createElement('span');
+    more.textContent = `+${(count - preview.sample.length).toLocaleString()}`;
+    strip.appendChild(more);
+  }
+  nodes.push(strip);
+
+  nodes.push(preview.trashEnabled === true
+    ? para(`This moves ${count === 1 ? 'it' : 'them'} to Immich’s trash. Restore from there within its retention period.`)
+    : para('Immich’s trash is off or could not be checked — this delete may be permanent.', 'warn'));
+
+  let input = null;
+  if (preview.typeToConfirm) {
+    const label = document.createElement('label');
+    label.className = 'lbl';
+    label.textContent = `Type ${count} to confirm`;
+    input = document.createElement('input');
+    input.type = 'text';
+    input.inputMode = 'numeric';
+    input.className = 'confirm-count';
+    input.autocomplete = 'off';
+    nodes.push(label, input);
+  }
+
+  const [, go] = showModal(nodes, [
+    { label: 'Cancel', onclick: hideModal },
+    {
+      label: `Delete ${n}`,
+      danger: true,
+      disabled: !!input,
+      onclick: async () => {
+        go.disabled = true;
+        try {
+          const data = await postJSON('/api/delete', { token: preview.token, confirm: count });
+          hideModal();
+          state.deleteTargets = selection;
+          followDelete(data.job);
+        } catch (err) {
+          hideModal();
+          staleResults(err);
+        }
+      },
+    },
+  ]);
+  if (input) {
+    input.oninput = () => { go.disabled = input.value.trim() !== String(count); };
+    input.focus();
+  }
+}
+
+function followDelete(job) {
+  showDeleteJob(job);
+  if (state.deleting) return;  // already polling it
+  state.deleting = true;
+  updateDeleteButtons();
+  setTimeout(pollDelete, 1000);
+}
+
+async function pollDelete() {
+  let job;
+  try {
+    job = (await api('/api/delete')).job;
+  } catch (err) {
+    setTimeout(pollDelete, 3000);
+    return;
+  }
+  if (!job) return;
+  showDeleteJob(job);
+  if (job.active) {
+    setTimeout(pollDelete, 1000);
+    return;
+  }
+  state.deleting = false;
+  const targets = state.deleteTargets;
+  state.deleteTargets = null;
+  const open = state.viewerItem;
+  if (open && targets && (targets.mode === 'all' ? !targets.except.includes(open.id) : targets.ids.includes(open.id))) {
+    closeViewer();
+  }
+  clearSelection();
+  runSearch();
+  pollStatus();
+}
+
+const DELETE_TITLES = {
+  resolving: 'Finding the images in Immich…',
+  trashing: 'Moving to Immich’s trash…',
+  finishing: 'Updating the results…',
+  finished: 'Delete complete',
+  error: 'Delete did not finish',
+};
+
+function showDeleteJob(job) {
+  const panel = $('delete-panel');
+  panel.hidden = false;
+  panel.classList.toggle('done', !job.active);
+  const pct = job.total ? Math.round((job.done / job.total) * 100) : 0;
+  $('delete-bar').style.width = `${pct}%`;
+  $('delete-pct').textContent = `${job.done.toLocaleString()} / ${job.total.toLocaleString()}`;
+  $('delete-title').textContent = DELETE_TITLES[job.state] || job.state;
+
+  const detail = $('delete-detail');
+  detail.replaceChildren();
+  const bits = [`${job.deleted.toLocaleString()} moved to trash`];
+  if (job.already) bits.push(`${job.already.toLocaleString()} already in trash`);
+  if (job.missing) bits.push(`${job.missing.toLocaleString()} not in Immich`);
+  if (job.failed) bits.push(`${job.failed.toLocaleString()} failed`);
+  detail.append(document.createTextNode(bits.join(' · ')));
+  if (job.error) detail.appendChild(Object.assign(document.createElement('div'), { className: 'bad', textContent: job.error }));
+  if (!job.active && job.failures.length) {
+    const list = document.createElement('div');
+    list.className = 'examples';
+    list.textContent = job.failures.map((f) => `${f.name}: ${f.reason}`).join('\n')
+      + (job.moreFailures ? `\n… and ${job.moreFailures.toLocaleString()} more (see the log)` : '');
+    detail.appendChild(list);
+  }
+
+  const actions = $('delete-actions');
+  const mode = job.active ? 'running' : 'done';
+  if (actions.dataset.mode !== mode) {
+    actions.dataset.mode = mode;
+    if (job.active) {
+      actions.replaceChildren();
+    } else {
+      const log = document.createElement('button');
+      log.className = 'btn';
+      log.textContent = 'Show log folder';
+      log.onclick = () => postJSON('/api/reveal', { path: state.stateDir }).catch(() => {});
+      const close = document.createElement('button');
+      close.className = 'btn';
+      close.textContent = 'Dismiss';
+      close.onclick = () => { panel.hidden = true; };
+      actions.replaceChildren(log, close);
+    }
+  }
 }
 
 /* ---------------- export ---------------- */
@@ -452,6 +807,7 @@ async function startExport() {
 
   state.jobId = job.id;
   $('export').disabled = true;
+  updateDeleteButtons();
   showJob(job);
   pollJob();
 }
@@ -470,6 +826,7 @@ async function pollJob() {
   } else {
     state.jobId = null;
     $('export').disabled = state.selected === 0;
+    updateDeleteButtons();
   }
 }
 
@@ -562,6 +919,7 @@ function followTagging(job) {
   showTagJob(job);
   if (state.tagging) return;  // already polling it
   state.tagging = true;
+  updateDeleteButtons();
   const button = $('tag-new');
   button.disabled = true;
   button.classList.remove('attention');
@@ -583,6 +941,7 @@ async function pollTagging() {
   }
 
   state.tagging = false;
+  updateDeleteButtons();
   if (job?.written) {
     // The server has already started rebuilding the index; following it re-runs the
     // search and the count once the new tags are in.
@@ -749,6 +1108,9 @@ function renderRetagBanner(retag) {
 /* ---------------- immich ---------------- */
 
 function renderImmich(immich) {
+  state.canDelete = !!immich?.canDelete;
+  state.deleteReason = immich?.deleteReason || null;
+  updateDeleteButtons();
   const sync = $('immich-sync');
   const clean = $('immich-clean');
   if (!immich || !immich.configured) {
@@ -859,6 +1221,7 @@ const IMMICH_PHASES = {
 
 function followImmich(job) {
   state.immichBusy = true;
+  updateDeleteButtons();
   $('immich-sync').disabled = true;
   $('immich-clean').disabled = true;
   showImmichJob(job);
@@ -880,6 +1243,7 @@ async function pollImmich() {
     return;
   }
   state.immichBusy = false;
+  updateDeleteButtons();
   $('immich-sync').disabled = false;
   $('immich-clean').disabled = false;
   api('/api/status').then((status) => renderImmich(status.immich)).catch(() => {});
@@ -985,8 +1349,26 @@ function init() {
     } catch (err) { toast(err.message); }
   };
 
+  $('sel-all').onclick = () => {
+    state.sel.mode = 'all';
+    state.sel.ids = new Set();
+    state.sel.except = new Set();
+    renderSelection();
+  };
+  $('sel-clear').onclick = clearSelection;
+  $('sel-download').onclick = downloadSelection;
+  $('sel-delete').onclick = () => confirmDelete(selectionPayload());
+  $('viewer-delete').onclick = () => {
+    const item = state.viewerItem;
+    if (item) confirmDelete({ mode: 'ids', ids: [item.id], generation: item.generation });
+  };
+
   $('viewer').onclick = (event) => { if (event.target.id === 'viewer') closeViewer(); };
-  document.addEventListener('keydown', (event) => { if (event.key === 'Escape') closeViewer(); });
+  $('modal').onclick = (event) => { if (event.target.id === 'modal') hideModal(); };
+  document.addEventListener('keydown', (event) => {
+    if (event.key !== 'Escape') return;
+    if (!$('modal').hidden) hideModal(); else closeViewer();
+  });
 
   const main = document.querySelector('main');
   main.addEventListener('scroll', () => {
@@ -998,6 +1380,7 @@ function init() {
   // A run carries on server-side when the page reloads; pick its progress back up.
   api('/api/tag').then((data) => { if (data.job?.active) followTagging(data.job); }).catch(() => {});
   api('/api/immich/sync').then((data) => { if (data.job?.active) followImmich(data.job); }).catch(() => {});
+  api('/api/delete').then((data) => { if (data.job?.active) followDelete(data.job); }).catch(() => {});
 }
 
 init();

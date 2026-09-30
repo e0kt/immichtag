@@ -92,6 +92,8 @@ account, with these permissions:
 
 `asset.read`, `asset.update`, `job.create`, `job.read`, `tag.read`, `tag.delete`
 
+and `asset.delete` if you want to delete images from `immichtag-web` (see below).
+
 Put it in `~/.config/immichtag/config.toml` and make the file readable only by you
 (`chmod 600`). immichtag warns if it isn't.
 
@@ -175,6 +177,7 @@ but you can see what you are selecting:
   which tags would be deleted before it lets you delete them.
 - **A banner** while images are still not re-tagged, since filter results are incomplete until
   they are.
+- **Download and delete** straight from the results. See below.
 
 The whole library is indexed into memory once at startup, after which a filter is answered by
 set arithmetic in around a millisecond. A tagging run started from the page rebuilds the index
@@ -187,7 +190,39 @@ when it finishes. **Rescan** does the same after tagging from the terminal.
 | `--host` | `127.0.0.1` | Interface to bind: loopback, i.e. this machine only |
 | `--no-browser` | off | Do not open a browser window |
 
-The server has no authentication, so leave `--host` alone unless you have a reason to expose it.
+The server has no authentication, and the page can delete images, so leave `--host` alone.
+Anyone who can reach the port can do everything the page can.
+
+### Downloading and deleting
+
+- **↓ on a thumbnail**, or **Download** in the full-image view, saves that one original file
+  under its own name. Downloads are always the untouched originals: the size limit and
+  compression under Output apply only to Export.
+- **Tick thumbnails to select them.** Shift-click a second box to select everything between the
+  two. **Select all N matching** selects every match of the current filters, including the ones
+  not loaded in the grid yet. Unticking a thumbnail after that leaves just that one out.
+  Changing the filters clears the selection; reordering doesn't.
+- **Download** with a selection shows the number of images and their total size, then saves one
+  zip. The zip is streamed as it's built, so its size doesn't matter. Files with the same name
+  are numbered (`x.jpg`, `x-1.jpg`), and any file that couldn't be read is listed in
+  `_skipped.txt` inside the zip.
+- **Delete…**, for the selection or in the full-image view, **moves the images to Immich's
+  trash**. They stay recoverable there until Immich empties its trash (after 30 days by default).
+  immichtag never deletes permanently and never removes files itself. The confirmation shows
+  how many images there are and a sample of them. Above 100 images you have to type the number.
+  If Immich's trash is turned off, deletes there are permanent, so the page says so and always
+  asks for the number.
+- **After a delete**, the images leave the results and counts at once. A trashed image's file stays
+  on disk until the trash is emptied, so the page asks Immich what is in its trash whenever it
+  indexes (startup, Rescan) and leaves those images out. Images you trashed in Immich itself are
+  left out too. **Restore** an image in Immich's trash and it's back after the next Rescan.
+- Delete needs the API key's `asset.delete` permission and a reachable Immich; otherwise the
+  button is disabled, with the reason as its tooltip. Download works without Immich.
+- A delete never runs alongside tagging, a sync, a tag cleanup or an export. That includes a
+  tagging run in a terminal: whichever starts second is refused.
+- Every delete is logged, one line per image, in `deletions.jsonl` in the library's state folder
+  (`~/Library/Application Support/immichtag/<library id>/`). **Show log folder** in the delete
+  panel opens it.
 
 ## Filtering tagged images — `immichtag-filter`
 

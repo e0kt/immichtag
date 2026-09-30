@@ -258,11 +258,17 @@ input:focus, select:focus { border-color: var(--accent); }
 /* ---------- results ---------- */
 
 .results-bar {
+  position: sticky;
+  top: -14px;               /* main's top padding: stick flush to the pane's edge */
+  z-index: 5;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 12px;
   margin-bottom: 12px;
-  min-height: 26px;
+  padding: 6px 0;
+  min-height: 44px;         /* room for the buttons, so they appear without a jump */
+  background: var(--bg);
 }
 
 .count { font-size: 15px; font-weight: 600; }
@@ -299,6 +305,24 @@ input:focus, select:focus { border-color: var(--accent); }
   white-space: nowrap;
 }
 
+.card-dl {
+  position: absolute;
+  top: 6px; right: 6px;
+  width: 26px; height: 26px;
+  display: grid;
+  place-items: center;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, .65);
+  color: var(--text);
+  font-size: 15px;
+  text-decoration: none;
+  opacity: 0;
+  transition: opacity .12s;
+}
+.card:hover .card-dl, .card-dl:focus-visible { opacity: 1; }
+.card-dl:hover { background: var(--accent); color: #10151d; }
+.card-dl:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
 .empty { color: var(--muted); padding: 50px 0; text-align: center; }
 
 /* ---------- viewer ---------- */
@@ -328,6 +352,8 @@ input:focus, select:focus { border-color: var(--accent); }
 }
 .viewer .side h3 { font-size: 12px; margin: 0 0 4px; word-break: break-all; }
 .viewer .side p { color: var(--muted); font-size: 11px; margin: 0 0 10px; }
+.viewer-actions { display: flex; gap: 7px; margin: 6px 0 10px; }
+.viewer-actions .btn { text-decoration: none; color: inherit; }
 
 .taglist { display: flex; flex-wrap: wrap; gap: 5px; }
 .taglist button {
@@ -427,3 +453,66 @@ input:focus, select:focus { border-color: var(--accent); }
   border: 1px solid currentColor; background: none; color: inherit; font: inherit; cursor: pointer;
 }
 .warning .alt-tag:hover { background: color-mix(in srgb, currentColor 12%, transparent); }
+
+/* ---------- selection ---------- */
+
+.btn.danger { border-color: color-mix(in srgb, var(--bad) 55%, var(--line)); color: var(--bad); }
+.btn.danger:hover:not(:disabled) { border-color: var(--bad); background: color-mix(in srgb, var(--bad) 14%, var(--panel-2)); }
+
+/* The selection controls live in the results row, which always exists, so starting a
+   selection never shifts the grid under the pointer. */
+.selection { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.selection[hidden] { display: none; }
+.sel-count { font-weight: 600; color: var(--accent); }
+
+.card-check {
+  position: absolute;
+  top: 8px; left: 8px;
+  width: 18px; height: 18px;
+  margin: 0;
+  accent-color: var(--accent);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity .12s;
+}
+.card:hover .card-check, .card-check:focus-visible, body.selecting .card-check { opacity: 1; }
+.card.selected { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent); }
+
+/* ---------- confirmation dialog ---------- */
+
+.modal {
+  position: fixed;
+  inset: 0;
+  z-index: 70;               /* above the viewer and the toast */
+  background: rgba(8, 9, 12, .7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+.modal[hidden] { display: none; }
+.modal-box {
+  width: 100%;
+  max-width: 560px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 16px 18px;
+  box-shadow: 0 18px 50px rgba(0, 0, 0, .6);
+}
+.modal-box p { margin: 0 0 10px; }
+.modal-box .modal-title { font-size: 15px; font-weight: 600; }
+.modal-box .warn { color: var(--warn); }
+.modal-box .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
+.modal-box .actions .btn.primary { width: auto; padding: 6px 14px; }
+
+.sample {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(56px, 1fr));
+  gap: 6px;
+  margin: 0 0 12px;
+}
+.sample img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 5px; border: 1px solid var(--line); }
+.sample span { display: grid; place-items: center; aspect-ratio: 1; color: var(--muted); font-size: 12px; }
+
+.confirm-count { width: 100%; }
