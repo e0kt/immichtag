@@ -15,7 +15,7 @@ Behaviour is defined in [contracts/cli.md](./contracts/cli.md), [contracts/sidec
   [immich]
   url = "http://127.0.0.1:2283"
   api_key = "<key>"
-  path_map = "/data=/Users/paul/docker/immich/library"
+  path_map = "/data=~/docker/immich/library"
   ```
 
 - Install and run the tests:
@@ -38,7 +38,7 @@ uv run immichtag --dry-run
 ```bash
 T=$(mktemp -d)
 rsync -a --include='*/' --include='*.jpg' --include='*.jpg.xmp' --exclude='*' \
-  "/Users/paul/docker/immich/library/upload/259c78e3-e823-494b-9269-6d06e657298c/d5/" "$T/"
+  "~/docker/immich/library/upload/<user-id>/d5/" "$T/"
 rm "$(ls $T/*/*.jpg | head -1).xmp"               # make one image NEW
 uv run immichtag --dir "$T" --no-immich
 ```

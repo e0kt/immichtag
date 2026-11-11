@@ -1,7 +1,21 @@
 [project]
 name = "immichtag"
 version = "0.2.0"
-description = "PixAI anime tagger -> Immich-compatible XMP sidecars, with tag filtering, export and Immich sync"
+description = "Tag an anime image library with PixAI Tagger v1.0 into Immich-compatible XMP sidecars, then filter, export and sync it with Immich"
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "e0kt" }]
+keywords = ["immich", "anime", "tagger", "pixai", "danbooru", "xmp", "sidecar"]
+classifiers = [
+    "Environment :: Console",
+    "Environment :: Web Environment",
+    "Operating System :: MacOS",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Topic :: Multimedia :: Graphics",
+    "Topic :: Scientific/Engineering :: Image Recognition",
+]
 requires-python = ">=3.11,<3.14"
 dependencies = [
     # Version FLOORS, not pins: wheel availability tracks the Python version, and a
@@ -18,6 +32,10 @@ dependencies = [
     "torchvision>=0.19",
     "transformers>=4.46",
 ]
+
+[project.urls]
+Homepage = "https://github.com/e0kt/immichtag"
+Issues = "https://github.com/e0kt/immichtag/issues"
 
 [project.scripts]
 immichtag = "immichtag.cli:main"
@@ -38,4 +56,4 @@ packages = ["src/immichtag"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-markers = ["integration: needs the cached PixAI model and an Apple GPU"]
+markers = ["integration: needs the cached PixAI model and a GPU"]

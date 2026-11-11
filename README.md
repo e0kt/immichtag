@@ -1,352 +1,380 @@
 # immichtag
 
-Anime image tagger for an Immich library. [PixAI Tagger v1.0] writes Immich-compatible XMP
-sidecars (`image.jpg` → `image.jpg.xmp`) with `character/`, `parody/`, `tag/`, `meta/` and
-`rating/` hierarchies. Tools here filter and export images by those tags, and keep Immich in step
-with the sidecars.
+**English** · [简体中文](README.zh-CN.md)
+
+Tag an anime image library with [PixAI Tagger v1.0], see the tags in [Immich], and pick
+images by tag in a local web UI.
+
+immichtag writes an XMP sidecar next to every image (`image.jpg` → `image.jpg.xmp`). Immich
+reads those natively, so characters, series and ~40 descriptive tags per image show up as
+Immich tags you can search and browse. The same sidecars drive a browser UI and a CLI for
+filtering, exporting, downloading and trashing images.
+
+![immichtag-web: two filters, a global exclusion, live matches and the output settings](docs/images/webui.png)
 
 [PixAI Tagger v1.0]: https://huggingface.co/pixai-labs/pixai-tagger-v1.0
+[Immich]: https://immich.app
 
-## Usage
+## Features
+
+- **PixAI Tagger v1.0 by default.** A Danbooru-vocabulary tagger that recognises far more
+  characters than WD14 and also predicts the series (copyright) and a rating. It runs on an
+  Apple GPU or an NVIDIA GPU in half precision, or on the CPU.
+- **Immich-native output.** Hierarchical tags (`character/…`, `parody/…`, `tag/…`, `meta/…`,
+  `rating/…`) in the three XMP properties Immich reads. No database access, no plugin.
+- **Keeps Immich in step.** After a run it asks Immich to re-read exactly the sidecars that
+  changed, then deletes the tags nothing uses any more, but only under its own prefixes.
+- **Web UI** (`immichtag-web`): tag autocomplete with counts, live thumbnails, full tag list
+  per image, export to a folder with size limits, zip download, move to Immich's trash, and
+  a Tag button that runs the tagger with a progress bar.
+- **CLI export** (`immichtag-filter`): the same filters from the terminal.
+- **Safe to run on a big library.** Incremental (finished images are skipped), atomic
+  writes, interruptible, one run at a time, and every overwritten sidecar is backed up first.
+
+## Requirements
+
+- Python 3.11–3.13 and [uv](https://docs.astral.sh/uv/).
+- macOS on Apple Silicon, or Linux. An NVIDIA GPU is used automatically when present. Windows
+  is not supported.
+- About 1.8 GB of disk for the model, downloaded from Hugging Face on the first run.
+- Immich is optional. Without it, the tagger, the filter and the web UI still work on the
+  sidecars; syncing and deleting need an Immich API key.
+
+## Install
 
 ```bash
-uv run immichtag
+git clone https://github.com/e0kt/immichtag.git
+cd immichtag
+uv sync
 ```
 
-That is the whole normal workflow. The command scans the library, tags every image that has no
-sidecar yet (new uploads come first), and re-tags every image whose sidecar was written by
-another model. That includes every old WD14 sidecar. When it is done, it asks Immich to re-read
-the new sidecars and deletes the tags nothing uses any more.
+Then run each command with `uv run immichtag…` from the repository. To install the commands on
+your `PATH` instead: `uv tool install git+https://github.com/e0kt/immichtag`.
 
-The command is safe to interrupt and re-run. Sidecars are written one at a time and atomically,
-and finished images are skipped the next time. Before anything is overwritten, the old sidecars
-are backed up (see [Backups](#backups)).
+## Quick start
 
-The default library is `/Users/paul/docker/immich/library/upload`. Point it elsewhere with
-`IMMICHTAG_DIR=/some/path uv run immichtag`, or per run with `--dir`.
+1. **Tell it which folder to tag.** Copy the example config and edit `[library] dir`:
 
-### Speed
+   ```bash
+   mkdir -p ~/.config/immichtag
+   cp examples/config.toml ~/.config/immichtag/config.toml
+   chmod 600 ~/.config/immichtag/config.toml
+   ```
 
-The command runs on the Mac's GPU in half precision at about 1.7–1.8 images/s on an M5. Re-tagging
-the full ~88k-image library takes about 14 hours, and you can spread that over several runs.
-Without the GPU it falls back to the CPU and warns you, at a fraction of the speed.
-`uv run immichtag --dry-run` shows what would be tagged and an estimate, without loading the
-model.
+   `--dir /path` on any command, or `IMMICHTAG_DIR=/path`, overrides it. See
+   [Immich setup](#immich-setup) for which folder that is.
 
-### Options
+2. **Look before you tag:**
 
-| Flag | Default | Purpose |
-| --- | --- | --- |
-| `--dir` | `$IMMICHTAG_DIR`, else the path above | Library to tag |
-| `--dry-run` | off | Counts and time estimate, then exit |
-| `--limit N` | none | Stop after N images: a quick trial run |
-| `--overwrite` | off | Also re-tag images already tagged by the current model |
-| `--keep-common-tags` | off | Keep `1girl`, `solo`, `looking_at_viewer`, … |
-| `--no-rating` | off | Skip `rating/*` tags |
-| `--general-threshold` | 0.34 | `tag/*` |
-| `--character-threshold` | 0.37 | `character/*` |
-| `--parody-threshold` | 0.46 | `parody/*` (series / copyright) |
-| `--meta-threshold` | 0.47 | `meta/*` (whitelisted tags only) |
-| `--device` | `auto` | `mps` (Apple GPU), `cpu`, or `auto` |
-| `--no-immich` | off | Don't sync to Immich afterwards; the images stay pending |
+   ```bash
+   uv run immichtag --dry-run       # counts and a time estimate; doesn't load the model
+   uv run immichtag --limit 20      # a quick trial run
+   ```
 
-The thresholds are the model authors' per-category operating points. They give about 35–40
-`tag/*` tags per image.
+3. **Tag everything:** `uv run immichtag`. This is also the everyday command. It tags every
+   image without a sidecar (those come first) and re-tags every image whose sidecar another
+   tagger or model version wrote, then syncs Immich. Interrupt it whenever you like and run it
+   again later.
 
-## The tags
+4. **Browse:** `uv run immichtag-web` opens the web UI at http://127.0.0.1:8788.
 
-| Prefix | What | Notes |
-| --- | --- | --- |
-| `character/` | Named characters | e.g. `character/hatsune_miku` |
-| `parody/` | Series, games, franchises | e.g. `parody/blue_archive`, `parody/original` |
-| `tag/` | Everything visible | common filler like `1girl`/`solo` dropped unless `--keep-common-tags` |
-| `meta/` | A short whitelist only | AI-generated, official art, screenshots, photos, traditional media |
-| `rating/` | Exactly one per image | `general`, `sensitive`, `questionable`, `explicit`, the same names as before |
+## Immich setup
 
-- **Artist/style labels are not written.** The model predicts them from drawing style, not
-  provenance.
-- **A `/` inside a name is written as `∕`** (U+2215). For example, the series `fate/grand_order`
-  is stored as `parody/fate∕grand_order`, because Immich splits tags on `/` into levels. When
-  filtering, you can type either form.
-- **Your own tags are kept.** A tag you add in Immich is written back into the sidecar by Immich,
-  and it survives re-tagging as long as it isn't under one of the five prefixes above.
-- Every sidecar records which model and revision wrote it. That record is how a run knows what is
-  current.
+immichtag works on the image files on disk, so it must run on a machine that sees Immich's
+files: usually the Immich host itself. There are two ways to give it a folder. Both are spelled
+out in [`examples/`](examples/).
 
-### What changed from WD14
+### A. Immich's own uploads
 
-The new model uses a newer Danbooru vocabulary:
+No change to Immich is needed. Point `[library] dir` at the host folder that Immich's
+`docker-compose.yml` mounts as `/data`, i.e. `UPLOAD_LOCATION` from Immich's `.env`, as an
+absolute path:
 
-- Some old tags no longer exist. The most common is `bangs`: use `blunt_bangs`, `swept_bangs`,
-  `parted_bangs` or `hair_between_eyes`. `black_footwear` became `black_shoes`.
-- `parody/` is actually filled now; WD14 had no series category at all.
-- Characters from newer games are recognised far more often.
+```toml
+[library]
+dir = "/srv/immich/library"            # = UPLOAD_LOCATION
 
-The filter and the web UI warn when you use a tag the new model never writes, and suggest the
-likely replacement.
+[immich]
+url = "http://127.0.0.1:2283"
+api_key = "…"
+path_map = "/data=/srv/immich/library" # Immich's path = this machine's path (optional)
+```
 
-## Immich
+Immich's `thumbs/`, `encoded-video/`, `profile/` and `backups/` folders are skipped, so only
+originals are tagged, whether or not the storage template is on. Immich already writes its own
+sidecars into this folder, so writing more there is normal.
 
-The sync needs an Immich API key. Create one in Immich (Account Settings → API Keys) on the admin
-account, with these permissions:
+### B. An existing folder as an External Library
+
+If your images already live in their own folder, mount it into Immich with
+[`examples/immich/docker-compose.override.yml`](examples/immich/docker-compose.override.yml),
+which Docker Compose merges automatically:
+
+```yaml
+services:
+  immich-server:
+    volumes:
+      - /home/you/Pictures/anime:/mnt/anime
+```
+
+Then, in Immich, go to **Administration → External Libraries → Create library**, add the import
+path `/mnt/anime` and scan. Configure immichtag with the host path:
+
+```toml
+[library]
+dir = "/home/you/Pictures/anime"
+
+[immich]
+path_map = "/mnt/anime=/home/you/Pictures/anime"
+```
+
+Mount it read-write if you ever edit tags in Immich: Immich writes those edits back into the
+sidecar, and immichtag keeps them when it re-tags. With a read-only mount, that write-back
+fails, and the next sync (which makes Immich re-read the sidecar) drops the edits.
+
+One configuration covers one folder. To tag both an upload folder and an external library, run
+the second one with its own `IMMICHTAG_DIR` and `IMMICHTAG_PATH_MAP`.
+
+`path_map` is optional in both setups. When it's left out, immichtag works it out by finding
+Immich's asset paths under your folder. Set it when that fails, and the sync says so.
+
+### API key
+
+In Immich, go to **Account Settings → API Keys** on an **admin** account and create a key with:
 
 `asset.read`, `asset.update`, `job.create`, `job.read`, `tag.read`, `tag.delete`
 
-and `asset.delete` if you want to delete images from `immichtag-web` (see below).
+plus `asset.delete` if you want to move images to Immich's trash from the web UI. Put it in
+`config.toml` (or `IMMICHTAG_API_KEY`). immichtag warns if the file is readable by other users.
+`uv run immichtag-sync status` checks the connection and every permission.
 
-Put it in `~/.config/immichtag/config.toml` and make the file readable only by you
-(`chmod 600`). immichtag warns if it isn't.
+### What a sync does
 
-```toml
-[immich]
-url = "http://127.0.0.1:2283"
-api_key = "..."
-# Immich's path for the library, then this Mac's. Optional: guessed when left out.
-path_map = "/data=/Users/paul/docker/immich/library"
-```
+1. It asks Immich to re-read the sidecars written since the last sync, and to discover the
+   sidecars of images Immich hasn't seen one for. Immich then replaces each image's tags with
+   the sidecar's.
+2. It waits for Immich's job queues to drain.
+3. It deletes tags that no image uses any more, such as a tag the model stopped predicting
+   after a re-tag. It only ever considers tags under `character`, `parody`, `tag`, `meta` and
+   `rating`, never deletes a parent while anything below it is in use, and re-checks each tag
+   right before deleting it. (Immich's own tag cleanup job is never used: it deletes **every**
+   empty tag, yours included.)
 
-The environment variables `IMMICHTAG_URL`, `IMMICHTAG_API_KEY` and
-`IMMICHTAG_PATH_MAP` override the file.
-
-After a run, immichtag does the following:
-
-1. It asks Immich to re-read the sidecars it wrote (and to discover the ones for new uploads).
-   Immich replaces each image's tags with the sidecar's.
-2. It waits for Immich's queues to empty.
-3. It deletes the tags nothing uses any more, such as `tag/bangs` once every image has been
-   re-tagged, and the thousands of old `character|…` leftovers.
-
-The cleanup is deliberately narrow:
-
-- It only touches tags under `character`, `parody`, `tag`, `meta` and `rating`, plus their old
-  `|` forms. It never touches any other tag, even an empty one.
-- It never deletes a tag while anything below it is still in use.
-- Each tag is checked empty again, right before it is deleted.
-
-(Immich's own "tag cleanup" job is not used: it deletes every empty tag, yours included.)
-
-If Immich is down or no key is set, tagging still completes, and the images are remembered as
-pending. `immichtag-sync` finishes the job:
+If Immich is down or no key is set, tagging still finishes, and the images are remembered as
+pending:
 
 ```bash
-uv run immichtag-sync status              # connection, permissions, what is pending
-uv run immichtag-sync sync                # the pending images
+uv run immichtag-sync status              # connection, permissions, pending images
+uv run immichtag-sync sync                # send the pending images
 uv run immichtag-sync sync --all          # every image
-uv run immichtag-sync cleanup --dry-run   # show which tags would be deleted
+uv run immichtag-sync cleanup --dry-run   # which empty tags would be deleted
 uv run immichtag-sync cleanup
 ```
 
+## Web UI
+
+```bash
+uv run immichtag-web
+```
+
+The whole library is indexed into memory at startup, so a filter is answered in about a
+millisecond, even across ~90k images.
+
+- **Filters.** Each filter is a set of tags that must all be present. An image matching any
+  filter is taken; switch to **Match ALL** to require every filter. Shift-Enter adds a tag as
+  an exclusion for that filter. Globs work: `blue_*`, `character/*`.
+- **Autocomplete with counts**, so you know how big a selection is before you make it.
+- **Never include**: tags no result may carry, whichever filter matched it.
+- **Warnings** under a filter for tags that don't exist, or that only old sidecars still carry,
+  with click-to-replace suggestions.
+- **Click a thumbnail** for the full image and every tag. Clicking a tag adds it to the filter
+  (shift-click excludes it).
+
+![The image viewer: the full image and every tag, each clickable into a filter](docs/images/viewer.jpg)
+
+- **Tag** (header) shows how many images are waiting and runs the same tagging as `immichtag`,
+  with progress, time left and cancel. Reloading the page reattaches to a running job. A run
+  from the terminal and one from the page can never overlap.
+- **Sync to Immich** and **Clean up Immich tags** appear when there is something to do. The
+  cleanup shows exactly which tags it would delete before you confirm.
+- **Rescan** re-reads the sidecars after you tag from the terminal.
+
+The server binds to `127.0.0.1` and has no authentication. The page can delete images, so don't
+expose it with `--host`.
+
+| Flag | Default | Purpose |
+| --- | --- | --- |
+| `--dir` | the configured library | Folder to index |
+| `--port` | `8788` | At the default, moves to the next free port if taken. Given explicitly, fails instead |
+| `--host` | `127.0.0.1` | Interface to bind |
+| `--no-browser` | off | Don't open a browser window |
+
+### Export preview
+
+The **Output** panel copies the current matches to a folder. **Max images** together with
+**Pick which** (scan order, random with an optional seed, newest, oldest) decides which matches
+are kept. Anything over **Max file size** is re-encoded on the way. The hint under **Export**
+says how many images will be written before you start, and the job panel reports what was copied
+and compressed, and anything that stayed over the limit.
+
+![An export: filters and output settings on the left, the finished job on the right](docs/images/export.png)
+
+In this example, the 150 KB WebP original was over the 100 KB limit, so it was written as a
+94 KB JPEG. An image already under the limit is copied byte for byte. Tick **Also copy the .xmp
+sidecars** to take the tags along.
+
+### Download and delete
+
+- **↓** on a thumbnail, or **Download** in the viewer, saves that original file, untouched.
+- **Tick thumbnails** to select them. Shift-click selects a range, and **Select all N matching**
+  takes every match, including the ones not loaded yet. **Download** then streams one zip.
+- **Delete…** moves the selection to **Immich's trash**, where it stays recoverable until Immich
+  empties the trash (after 30 days by default). immichtag never deletes files itself. Above 100
+  images you have to type the number to confirm. If Immich's trash is turned off, the dialog
+  says the delete is permanent and always asks for the number.
+- Every delete is logged in `deletions.jsonl` in the library's state folder (see
+  [Where things are kept](#where-things-are-kept)).
+
+## The tags
+
+```xml
+<digiKam:TagsList><rdf:Seq>
+  <rdf:li>character/hatsune_miku</rdf:li>
+  <rdf:li>parody/vocaloid</rdf:li>
+  <rdf:li>tag/twintails</rdf:li>
+  <rdf:li>tag/aqua_hair</rdf:li>
+  …
+  <rdf:li>meta/official_art</rdf:li>
+  <rdf:li>rating/general</rdf:li>
+</rdf:Seq></digiKam:TagsList>
+```
+
+The same list is written to `digiKam:TagsList`, `lr:HierarchicalSubject` and `dc:subject`,
+together with a record of the model and revision that wrote it.
+
+| Prefix | What | Example |
+| --- | --- | --- |
+| `character/` | Named characters | `character/hatsune_miku` |
+| `parody/` | Series, game, franchise (the model's *copyright* category) | `parody/blue_archive`, `parody/original` |
+| `tag/` | Everything visible | `tag/twintails`. Filler like `1girl`/`solo` is dropped unless `--keep-common-tags` |
+| `meta/` | A short whitelist only | AI-generated, official art, screenshots, photos, traditional media |
+| `rating/` | Exactly one per image | `general`, `sensitive`, `questionable`, `explicit` |
+
+- **Artist/style tags are not written.** The model guesses them from drawing style, not from
+  who actually drew the image.
+- **A `/` inside a name becomes `∕`** (U+2215), because Immich splits tags on `/`. For example,
+  `fate/grand_order` is stored as `parody/fate∕grand_order`. Filters accept either form.
+- **Your own tags are kept.** Any tag outside the five prefixes above survives re-tagging,
+  including tags you add in Immich, which Immich writes into the sidecar.
+
+> [!WARNING]
+> Re-tagging rewrites the whole sidecar. Tags are merged as described above, but other XMP
+> fields in an existing sidecar that immichtag didn't write (a description, star rating, GPS
+> or dates written by Immich or another app) are not carried over. The original is backed up
+> first (see [Backups](#backups)). Try `--limit` on a copy if your sidecars hold more than tags.
+
+## The model
+
+PixAI Tagger v1.0 is the default and only model. It is loaded from Hugging Face, pinned to one
+revision, and that revision is written into every sidecar. When the pinned revision changes, the
+next run knows which images to re-tag.
+
+| Device | Precision | Speed (decode + inference) |
+| --- | --- | --- |
+| Apple GPU (`mps`) | fp16 | ~1.8 images/s on an M5. About 14 h for 90k images |
+| NVIDIA GPU (`cuda`) | fp16 | Not benchmarked yet. Should be faster than `mps` |
+| CPU | fp32 | ~0.2 images/s. Usable for small libraries only |
+
+`--device auto` (the default) picks `cuda`, then `mps`, then `cpu`, and warns when it falls back
+to the CPU. A long run can be spread over several sessions: finished images are skipped.
+
+Compared with WD14 (`wd-v1-4-convnextv2-tagger-v2`), in a 20-image sample PixAI named the
+character in 16 images where WD14 named 6, and it fills `parody/`, which WD14 has no category
+for. It uses a newer Danbooru vocabulary, so a few old tags are gone (e.g. `bangs` → `blunt_bangs`,
+`swept_bangs`, …). The filter and the web UI point these out and suggest replacements.
+
+### `immichtag` options
+
+| Flag | Default | Purpose |
+| --- | --- | --- |
+| `--dir` | the configured library | Folder to tag |
+| `--dry-run` | off | Counts and a time estimate, then exit |
+| `--limit N` | none | Stop after N images |
+| `--overwrite` | off | Also re-tag images already tagged by the current model |
+| `--keep-common-tags` | off | Keep `1girl`, `solo`, `looking_at_viewer`, … |
+| `--no-rating` | off | Don't write `rating/*` |
+| `--general-threshold` | 0.34 | `tag/*` |
+| `--character-threshold` | 0.37 | `character/*` |
+| `--parody-threshold` | 0.46 | `parody/*` |
+| `--meta-threshold` | 0.47 | `meta/*` (whitelisted tags only) |
+| `--device` | `auto` | `cuda`, `mps`, `cpu` or `auto` |
+| `--no-immich` | off | Don't sync afterwards. The images stay pending for `immichtag-sync sync` |
+
+The thresholds are the model authors' per-category operating points, giving about 35–40 `tag/*`
+tags per image.
+
+## Filtering from the terminal: `immichtag-filter`
+
+Reads the sidecars, picks images by tag, and copies them into a folder, shrinking anything over
+1 MB on the way.
+
+```bash
+uv run immichtag-filter -f "character/hatsune_miku" -f "blue_hair,long_hair" \
+    -x "rating/explicit" --max-images 200 --order random -o ./picked
+```
+
+- `--filter`/`-f` is a comma-separated group of tags that must **all** be present. Repeat it
+  for up to 10 groups. An image matching **any** group is taken (`--match all` requires every
+  group).
+- Inside a group, `-tag` or `!tag` excludes that tag from that group only. `*` and `?` are
+  globs. A bare name matches under any prefix (`blue_hair` finds `tag/blue_hair`). Case, spaces
+  and dashes are folded.
+- `--exclude`/`-x` vetoes tags across all groups. `-x "rating/explicit"` alone means
+  "everything but those".
+- Since a leading `-` looks like an option, write an exclusion-only filter as
+  `-f '!rating/explicit'`.
+
+| Flag | Default | Purpose |
+| --- | --- | --- |
+| `--filter` / `-f` | none | Tag group. Repeat up to 10 times. None = every tagged image |
+| `--exclude` / `-x` | none | Tags no image may carry. Repeatable |
+| `--match` | `any` | Combine groups with OR (`any`) or AND (`all`) |
+| `--out` / `-o` | — | Output folder, created if missing |
+| `--max-images` / `-n` | no limit | Stop after N images |
+| `--max-size` | `1MB` | Compress anything larger. Accepts `900k`, `1.5MiB`, bytes |
+| `--no-compress` | off | Copy every image untouched |
+| `--order` | `scan` | Which matches `--max-images` keeps: `scan`, `random`, `newest`, `oldest` |
+| `--seed` | none | Reproducible `--order random` |
+| `--copy-sidecar` | off | Also copy each `.xmp` |
+| `--list-tags [N]` | off | Print the N most common tags among the matches, then exit |
+| `--dry-run` | off | Report how many images match, then exit |
+
+**Compression:** an image under the limit is copied byte for byte. A larger one is re-encoded as
+JPEG: quality first steps down from 92 toward 50, and only then is the image scaled down (never
+below 640 px on the long side). Transparency is flattened onto white. Output names are flattened
+into one folder (`img.jpg`, `img-1.jpg`, …).
+
 ## Backups
 
-Before a run overwrites any sidecar, the originals go into a backup:
-`~/Library/Application Support/immichtag/<library id>/backups/`. A file already in an earlier
-backup is not stored twice. For the whole WD14 library, the backup is roughly 20 MB (measured: about 240 bytes per sidecar, compressed).
+Before a run overwrites any sidecar, the originals go into a backup. A file already in an
+earlier backup isn't stored twice. 90k sidecars take about 20 MB.
 
 ```bash
 uv run immichtag-backup list
 uv run immichtag-backup restore 20260922T031415Z   # puts those sidecars back, byte for byte
 ```
 
-A restore first backs up the sidecars it replaces, then syncs Immich. The restored WD14 sidecars
-count as "not current", so the next `immichtag` run would re-tag them again.
+A restore first backs up the sidecars it replaces, then syncs Immich.
 
-## Browsing and filtering in a browser — `immichtag-web`
+## Where things are kept
 
-```bash
-uv run immichtag-web
-```
+| What | Where |
+| --- | --- |
+| Config | `~/.config/immichtag/config.toml` (or `IMMICHTAG_CONFIG`) |
+| State per library (lock, pending sync, backups, delete log) | macOS: `~/Library/Application Support/immichtag/<library id>/`. Linux: `$XDG_STATE_HOME/immichtag/<library id>/` (default `~/.local/state/…`). Or `IMMICHTAG_STATE_DIR` |
+| Model | the Hugging Face cache (`~/.cache/huggingface`, or `HF_HOME`) |
 
-This opens a local page (127.0.0.1:8788) with the same filtering as `immichtag-filter` (below),
-but you can see what you are selecting:
-
-- **Tag autocomplete** with a count next to every tag, so you know how big a selection is
-  before you make it.
-- **Live match count and thumbnails.** The number and the grid update as you add tags.
-- **Warnings under a filter** when a tag is a leftover from the old model or doesn't exist.
-  Click a suggestion to swap it in.
-- **Click any thumbnail** for the full image and its complete tag list. Clicking a tag there adds
-  it to the current filter (shift-click excludes it).
-- **A "Never include" box**: the `--exclude` veto, applied across every filter at once.
-- **The output controls** (folder, max images, size limit, ordering) as fields, with a progress
-  bar and a cancel button during the export.
-- **Tag** in the header shows how many images are new or still need re-tagging, and runs the
-  same tagging as `immichtag`: backup, progress, time left, cancel, then the Immich sync.
-  Reloading the page reattaches to a run in progress. A run from the terminal and one from the
-  page can never overlap: whichever starts second is refused.
-- **Sync to Immich (N)** appears when images are pending. **Clean up Immich tags** shows exactly
-  which tags would be deleted before it lets you delete them.
-- **A banner** while images are still not re-tagged, since filter results are incomplete until
-  they are.
-- **Download and delete** straight from the results. See below.
-
-The whole library is indexed into memory once at startup, after which a filter is answered by
-set arithmetic in around a millisecond. A tagging run started from the page rebuilds the index
-when it finishes. **Rescan** does the same after tagging from the terminal.
-
-| Flag | Default | Purpose |
-| --- | --- | --- |
-| `--dir` | `$IMMICHTAG_DIR`, else the library | Directory to index |
-| `--port` | `8788` | Port to serve on. Left at the default, it moves to the next free port if 8788 is taken; given explicitly, it fails rather than starting somewhere you aren't looking |
-| `--host` | `127.0.0.1` | Interface to bind: loopback, i.e. this machine only |
-| `--no-browser` | off | Do not open a browser window |
-
-The server has no authentication, and the page can delete images, so leave `--host` alone.
-Anyone who can reach the port can do everything the page can.
-
-### Downloading and deleting
-
-- **↓ on a thumbnail**, or **Download** in the full-image view, saves that one original file
-  under its own name. Downloads are always the untouched originals: the size limit and
-  compression under Output apply only to Export.
-- **Tick thumbnails to select them.** Shift-click a second box to select everything between the
-  two. **Select all N matching** selects every match of the current filters, including the ones
-  not loaded in the grid yet. Unticking a thumbnail after that leaves just that one out.
-  Changing the filters clears the selection; reordering doesn't.
-- **Download** with a selection shows the number of images and their total size, then saves one
-  zip. The zip is streamed as it's built, so its size doesn't matter. Files with the same name
-  are numbered (`x.jpg`, `x-1.jpg`), and any file that couldn't be read is listed in
-  `_skipped.txt` inside the zip.
-- **Delete…**, for the selection or in the full-image view, **moves the images to Immich's
-  trash**. They stay recoverable there until Immich empties its trash (after 30 days by default).
-  immichtag never deletes permanently and never removes files itself. The confirmation shows
-  how many images there are and a sample of them. Above 100 images you have to type the number.
-  If Immich's trash is turned off, deletes there are permanent, so the page says so and always
-  asks for the number.
-- **After a delete**, the images leave the results and counts at once. A trashed image's file stays
-  on disk until the trash is emptied, so the page asks Immich what is in its trash whenever it
-  indexes (startup, Rescan) and leaves those images out. Images you trashed in Immich itself are
-  left out too. **Restore** an image in Immich's trash and it's back after the next Rescan.
-- Delete needs the API key's `asset.delete` permission and a reachable Immich; otherwise the
-  button is disabled, with the reason as its tooltip. Download works without Immich.
-- A delete never runs alongside tagging, a sync, a tag cleanup or an export. That includes a
-  tagging run in a terminal: whichever starts second is refused.
-- Every delete is logged, one line per image, in `deletions.jsonl` in the library's state folder
-  (`~/Library/Application Support/immichtag/<library id>/`). **Show log folder** in the delete
-  panel opens it.
-
-## Filtering tagged images — `immichtag-filter`
-
-This program goes the other way: it reads the sidecars, picks the images whose tags you want,
-and copies them into a folder, shrinking anything over 1 MB on the way.
-
-```bash
-uv run immichtag-filter --filter "blue_hair,long_hair" --max-images 200 --out ./picked
-```
-
-### Filters
-
-A `--filter` (`-f`) is a comma-separated group of tags that must **all** be present:
-
-```bash
--f "blue_hair,long_hair,school_uniform"     # all three
-```
-
-Repeat `--filter` for up to **10** groups. An image matching **any** group is taken; with
-`--match all`, every group must match.
-
-```bash
--f "character/hatsune_miku" -f "parody/fate/grand_order"    # either
-```
-
-Inside a group:
-
-- `-tag` or `!tag` excludes, but **only from that group**: `-f "cat_ears,-rating/explicit"`.
-- `*` and `?` are globs: `-f "blue_*"`, `-f "character/*"`.
-- A bare tag matches the name under any prefix, so `blue_hair` finds `tag/blue_hair` and
-  `fate/grand_order` finds `parody/fate∕grand_order`. Start with a prefix (`rating/general`,
-  `meta/*`) when you want to pin the category.
-- Case, spaces and dashes are all folded, so `Blue Hair` == `blue_hair`.
-
-Since a leading `-` looks like an option to the shell, write an exclusion-only filter as
-`-f '!rating/explicit'` or `--filter=-rating/explicit`.
-
-When a tag in a filter is one the new model never writes, the command says so before scanning
-and suggests replacements. After scanning, it reports how many images still carry the tag. If
-images are not re-tagged yet, it notes that the results may be incomplete.
-
-### Excluding everywhere — `--exclude` / `-x`
-
-A `-tag` inside a `--filter` only rules that tag out of *that* group, so under `--match any` an
-image can still arrive through another group. `--exclude` vetoes the combined result:
-
-```bash
-immichtag-filter -f "cat_ears" -f "character/hatsune_miku" -x "rating/explicit" -o ./picked
-```
-
-`--exclude` takes the same comma-separated lists and globs as `--filter`, is repeatable, and
-works with no `--filter` at all: `-x "rating/explicit"` alone means "everything but those".
-
-Not sure what to filter on? `uv run immichtag-filter --list-tags 40` prints the most common tags
-in the library. Add filters to see the common tags *within* a selection.
-
-### Options
-
-| Flag | Default | Purpose |
-| --- | --- | --- |
-| `--filter` / `-f` | none | Tag group; repeat up to 10 times. No filters = every tagged image |
-| `--exclude` / `-x` | none | Tags no image may carry, across all filters. Repeatable |
-| `--match` | `any` | Combine the groups with OR (`any`) or AND (`all`) |
-| `--out` / `-o` | — | Output folder, created if missing |
-| `--max-images` / `-n` | no limit | Stop after N images |
-| `--max-size` | `1MB` | Compress anything larger; accepts `900k`, `1.5MiB`, a byte count |
-| `--no-compress` | off | Copy every image untouched, however large |
-| `--dir` | `$IMMICHTAG_DIR`, else the library | Directory to scan |
-| `--order` | `scan` | Which matches `--max-images` keeps: `scan`, `random`, `newest`, `oldest` |
-| `--seed` | none | Reproducible `--order random` |
-| `--copy-sidecar` | off | Also copy each `.xmp` next to the output image |
-| `--list-tags [N]` | off | Print the N most common tags among the matches, then exit |
-| `--dry-run` | off | Report how many images match, then exit without copying |
-
-### Compression
-
-- An image already under `--max-size` is copied byte for byte.
-- A larger one is re-encoded as JPEG: quality drops from 92 toward 50 first, and only then is the
-  image scaled down (never below 640 px on the long side).
-- Transparency is flattened onto white, since JPEG has no alpha channel.
-- If even that misses the limit, the smallest attempt is still written, and the run reports how
-  many files stayed over.
-
-Output names are flattened into one folder, so `a/img.jpg` and `b/img.jpg` land as `img.jpg` and
-`img-1.jpg`.
-
-## Moving from wd14
-
-The `wd14`, `wd14-filter` and `wd14-web` commands are gone. They are now `immichtag`,
-`immichtag-filter` and `immichtag-web`. `WD14_DIR` is no longer read (you get a one-line notice if
-it is still set); use `IMMICHTAG_DIR`.
-
-Once you are happy with the new tags, you can delete the old WD14 model (747 MB):
-
-```bash
-rm -rf ~/.cache/huggingface/hub/models--SmilingWolf--wd-v1-4-convnextv2-tagger-v2
-```
-
-## Layout
-
-Each program is a core module with no CLI concerns, plus a thin entry point:
-
-| | Core | Entry point |
-| --- | --- | --- |
-| `immichtag` | `run.py` (one tagging run), `tagger.py` (the model), `sidecar.py` (XMP read/write), `library.py` (scan, status, lock) | `cli.py` |
-| `immichtag-sync` | `immich.py` (API client, sync, tag cleanup) | `immich_cli.py` |
-| `immichtag-backup` | `backup.py` | `backup_cli.py` |
-| `immichtag-filter` | `filterer.py` (tag matching, copy/compress) | `filter_cli.py` |
-| `immichtag-web` | `web.py` (HTTP routes, jobs, thumbnails) | `web_cli.py` |
-
-Other modules:
-
-- `vocab.py`: the tag scheme (prefixes, thresholds, whitelist, escaping, matching rules,
-  suggestions).
-- `config.py`: where things live.
-- `index.py`: the in-memory index the web UI filters against.
-- `web/`: the page it serves.
-
-The web UI never reimplements filtering. It parses its rows into the same `TagFilter` objects the
-CLI builds, and both resolve a pattern through the one `filterer.pattern_matches`, so the two
-cannot drift apart.
-
-The model code is loaded from the pinned upstream revision rather than copied into this project.
-The PixAI repository declares no license.
+Nothing but `.xmp` sidecars is ever written inside the library.
 
 ## Development
 
@@ -355,3 +383,30 @@ uv run pytest                              # unit tests; model tests run when th
 uv run python scripts/bench20.py           # 20-image speed and quality check (read-only)
 uv run python scripts/verify_immich.py     # Immich tags == sidecar tags, on a random sample
 ```
+
+Each command is a core module plus a thin CLI entry point:
+
+| Command | Core | Entry point |
+| --- | --- | --- |
+| `immichtag` | `run.py`, `tagger.py`, `sidecar.py`, `library.py` | `cli.py` |
+| `immichtag-sync` | `immich.py` | `immich_cli.py` |
+| `immichtag-backup` | `backup.py` | `backup_cli.py` |
+| `immichtag-filter` | `filterer.py` | `filter_cli.py` |
+| `immichtag-web` | `web.py`, `index.py`, `web/` | `web_cli.py` |
+
+`vocab.py` holds the tag scheme (prefixes, thresholds, whitelist, escaping, matching) and
+`config.py` resolves paths and settings. The web UI never reimplements filtering: it builds the
+same `TagFilter` objects as the CLI, so the two can't drift apart. The design notes are in
+[`specs/`](specs/).
+
+## License
+
+immichtag is released under the [MIT License](LICENSE).
+
+The model is not part of this repository. PixAI Tagger v1.0's weights and model code are
+downloaded from [Hugging Face][PixAI Tagger v1.0] at run time, and the model code runs with
+`trust_remote_code`, pinned to a fixed revision. They are subject to PixAI's own terms, and that
+repository declares no license.
+
+The illustration in the screenshots is Hatsune Miku's official art, © Crypton Future Media, INC.
+www.piapro.net, shown only to demonstrate the tagger's output.

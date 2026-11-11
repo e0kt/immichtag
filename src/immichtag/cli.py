@@ -26,11 +26,11 @@ def build_parser() -> argparse.ArgumentParser:
         description=(
             "Tag anime images with PixAI Tagger v1.0 into Immich-compatible XMP sidecars. "
             "With no arguments, tags every new image and re-tags every image whose sidecar "
-            f"was not written by the current model, under {config.DEFAULT_ROOT}."
+            "was not written by the current model."
         ),
     )
     parser.add_argument("--dir", default=None,
-                        help=f"Library to tag (default: $IMMICHTAG_DIR, else {config.DEFAULT_ROOT})")
+                        help="Library to tag (default: $IMMICHTAG_DIR, else [library] dir in config.toml)")
     parser.add_argument("--dry-run", action="store_true",
                         help="Report what would be tagged and how long it would take, then exit")
     parser.add_argument("--limit", type=int, default=None, help="Stop after this many images")
@@ -45,8 +45,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--keep-common-tags", action="store_true",
                         help="Keep common tags such as 1girl, solo, looking_at_viewer")
     parser.add_argument("--no-rating", action="store_true", help="Do not write rating/* tags")
-    parser.add_argument("--device", choices=("auto", "mps", "cpu"), default="auto",
-                        help="auto = the Apple GPU when available")
+    parser.add_argument("--device", choices=("auto", "cuda", "mps", "cpu"), default="auto",
+                        help="auto = an NVIDIA GPU, else the Apple GPU, else the CPU")
     parser.add_argument("--no-immich", action="store_true",
                         help="Do not sync to Immich afterwards; the images stay pending for "
                              "`immichtag-sync sync`")
@@ -80,7 +80,7 @@ def dry_run(root, args) -> int:
     print(_counts_line(len(entries), counts, new, len(queue) - new))
     if queue:
         device = tagger.select_device(args.device)
-        estimate = " (rough estimate)" if device == "cpu" else ""
+        estimate = "" if device == "mps" else " (rough estimate)"
         print(f"Would tag {len(queue)} images on {device}: about {_hours(len(queue), device)}{estimate}.")
     return EXIT_OK
 
@@ -151,8 +151,8 @@ def main() -> int:
                     print(f"Backed up {progress.backup_count} sidecars -> {where} "
                           f"({filterer.human_size(progress.backup_bytes)})")
                 device = tagger.select_device(options.device)
-                precision = "fp16" if device == "mps" else "fp32"
-                print(f"Loading {tagger.MODEL_REPO} @ {tagger.MODEL_REVISION[:7]} on {device} ({precision}) ...")
+                print(f"Loading {tagger.MODEL_REPO} @ {tagger.MODEL_REVISION[:7]} on {device} "
+                      f"({tagger.precision(device)}) ...")
             elif state == "running":
                 if progress.device == "cpu":
                     print(f"warning: GPU unavailable, running on CPU — expect about "

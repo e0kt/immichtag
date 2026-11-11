@@ -1,0 +1,33 @@
+# immichtag configuration.
+#
+#   mkdir -p ~/.config/immichtag
+#   cp examples/config.toml ~/.config/immichtag/config.toml
+#   chmod 600 ~/.config/immichtag/config.toml     # it holds an API key
+#
+# Every value can be overridden by the environment variable named next to it, and the
+# library by --dir on any command. Set IMMICHTAG_CONFIG to use a different file.
+
+[library]
+# The folder to tag (IMMICHTAG_DIR). Pick ONE of the two setups below.
+#
+# A) Immich's own uploads: the host folder Immich mounts as /data, i.e. UPLOAD_LOCATION
+#    from Immich's .env, as an absolute path. Immich's thumbs/, encoded-video/, profile/
+#    and backups/ folders inside it are skipped automatically.
+dir = "/srv/immich/library"
+#
+# B) An existing folder you added to Immich as an External Library
+#    (see examples/immich/docker-compose.override.yml):
+# dir = "/home/you/Pictures/anime"
+
+[immich]
+# Optional. Without a key, tagging still works; images are remembered as pending and
+# `immichtag-sync sync` sends them later.
+url = "http://127.0.0.1:2283"   # IMMICHTAG_URL
+api_key = ""                     # IMMICHTAG_API_KEY — see README "API key"
+
+# How Immich (inside its container) spells the library path = how this machine spells it
+# (IMMICHTAG_PATH_MAP). Optional: when left out it is guessed from Immich's asset paths.
+#   A) path_map = "/data=/srv/immich/library"
+#      (older Immich releases mount /usr/src/app/upload instead of /data)
+#   B) path_map = "/mnt/anime=/home/you/Pictures/anime"
+# path_map = "/data=/srv/immich/library"

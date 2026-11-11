@@ -1068,8 +1068,8 @@ function warningLine(warning) {
   line.className = `warning ${warning.kind}`;
   const quoted = `“${warning.pattern}”`;
   const text = {
-    legacy: `${quoted} is a legacy tag — ${warning.count.toLocaleString()} images still have it until they are re-tagged; the new model never writes it.`,
-    unknown: `${quoted} does not exist in this library or the new model.`,
+    legacy: `${quoted} is a legacy tag — ${warning.count.toLocaleString()} images still have it until they are re-tagged; the current model never writes it.`,
+    unknown: `${quoted} does not exist in this library or the model's vocabulary.`,
     empty: `No image has ${quoted} yet.`,
   }[warning.kind] || quoted;
   line.append(document.createTextNode(text));
@@ -1101,7 +1101,7 @@ function renderWarnings() {
 function renderRetagBanner(retag) {
   const left = retag ? retag.legacy + retag.outdated : 0;
   $('retag-banner').hidden = !left || state.retagDismissed;
-  $('retag-text').textContent = `${left.toLocaleString()} images are not re-tagged with the new model yet — `
+  $('retag-text').textContent = `${left.toLocaleString()} images are not re-tagged with the current model yet — `
     + 'filter results may be incomplete until they are.';
 }
 

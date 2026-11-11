@@ -1,4 +1,4 @@
-"""The model: PixAI Tagger v1.0 on the Apple GPU, and probabilities -> sidecar tags.
+"""The model: PixAI Tagger v1.0 on the GPU (Apple or NVIDIA), and probabilities -> sidecar tags.
 
 No I/O beyond reading the image; writing sidecars is run.py's job.
 
@@ -29,18 +29,36 @@ INPUT_SIZE = 1008
 # (the first full run lost a 223-megapixel image to it).
 Image.MAX_IMAGE_PIXELS = None
 
-#: Measured on an M5 end to end (decode + inference), for time estimates only.
-EXPECTED_RATE = {"mps": 1.8, "cpu": 0.2}
+#: Images/s end to end (decode + inference), for time estimates only. mps and cpu were
+#: measured on an Apple M5; cuda is a conservative guess for a mid-range NVIDIA card.
+EXPECTED_RATE = {"cuda": 3.0, "mps": 1.8, "cpu": 0.2}
+
+#: Devices that run the model in half precision; fp32 is ~3x slower on the Apple GPU,
+#: and fp16 scores differ from fp32 by about 0.003.
+HALF_PRECISION = {"cuda", "mps"}
+
+
+def _available(device: str) -> bool:
+    if device == "cuda":
+        return torch.cuda.is_available()
+    if device == "mps":
+        return torch.backends.mps.is_available()
+    return device == "cpu"
 
 
 def select_device(preference: str = "auto") -> str:
-    if preference == "cpu":
-        return "cpu"
-    if torch.backends.mps.is_available():
-        return "mps"
-    if preference == "mps":
-        raise RuntimeError("--device mps requested but the Apple GPU is not available")
-    return "cpu"
+    """`auto` = an NVIDIA GPU, else the Apple GPU, else the CPU."""
+    if preference == "auto":
+        return next(d for d in ("cuda", "mps", "cpu") if _available(d))
+    if preference not in EXPECTED_RATE:
+        raise ValueError(f"unknown device {preference!r}")
+    if not _available(preference):
+        raise RuntimeError(f"--device {preference} requested but it is not available")
+    return preference
+
+
+def precision(device: str) -> str:
+    return "fp16" if device in HALF_PRECISION else "fp32"
 
 
 class Tagger:
@@ -49,7 +67,7 @@ class Tagger:
     def __init__(self, model: torch.nn.Module, device: str) -> None:
         self.model = model
         self.device = device
-        self.dtype = torch.float16 if device == "mps" else torch.float32
+        self.dtype = torch.float16 if device in HALF_PRECISION else torch.float32
         self.names: List[str] = list(model.config.tags)
         self.categories: List[str] = [
             category for category, count in model.config.tags_split for _ in range(count)
@@ -78,7 +96,7 @@ def load_model(device: str = "auto") -> Tagger:
     # RoPE buffers (freqs_cis) to a real dtype, silently dropping their imaginary part —
     # the model still runs and returns plausible-looking nonsense.
     model = model.eval().to(device)
-    if device == "mps":
+    if device in HALF_PRECISION:
         model = model.half()
     rope = [buf for name, buf in model.named_buffers() if name.endswith("freqs_cis")]
     if not rope or not all(buf.is_complex() for buf in rope):

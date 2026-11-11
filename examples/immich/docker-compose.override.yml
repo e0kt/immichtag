@@ -1,0 +1,22 @@
+# Setup B: let Immich show an existing anime folder as an External Library, so
+# immichtag can tag it in place and Immich picks the tags up.
+#
+# 1. Put this file next to Immich's docker-compose.yml. Docker Compose merges
+#    docker-compose.override.yml automatically, so the stock file stays untouched.
+# 2. Change the host path, then:   docker compose up -d
+# 3. In Immich: Administration -> External Libraries -> Create library -> pick the
+#    owner -> Add import path "/mnt/anime" -> Scan.
+# 4. In ~/.config/immichtag/config.toml:
+#       [library]
+#       dir = "/home/you/Pictures/anime"
+#       [immich]
+#       path_map = "/mnt/anime=/home/you/Pictures/anime"
+services:
+  immich-server:
+    volumes:
+      # host folder : the path Immich sees.
+      # Mounted read-write on purpose: when you edit tags in Immich's UI, Immich writes
+      # them back into the .xmp sidecar. With :ro that write fails, and the next
+      # immichtag sync (which makes Immich re-read the sidecar) drops your edits.
+      # Use :ro only if you never edit tags in Immich.
+      - /home/you/Pictures/anime:/mnt/anime

@@ -25,7 +25,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     def common(cmd):
         cmd.add_argument("--dir", default=None,
-                         help=f"Library (default: $IMMICHTAG_DIR, else {config.DEFAULT_ROOT})")
+                         help="Library (default: $IMMICHTAG_DIR, else [library] dir in config.toml)")
         return cmd
 
     sync = common(sub.add_parser("sync", help="Re-read the sidecars written since the last sync"))

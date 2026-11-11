@@ -59,7 +59,7 @@ def warn_before_scan(filters, exclude) -> list:
         if warning and warning["kind"] != "empty":
             flagged.append(pattern)
             similar = f" similar: {', '.join(warning['similar'])}" if warning["similar"] else ""
-            print(f"warning: '{pattern}' is not in the new model's vocabulary.{similar}", file=sys.stderr)
+            print(f"warning: '{pattern}' is not in the model's vocabulary.{similar}", file=sys.stderr)
     return flagged
 
 
@@ -127,7 +127,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--dir",
         default=None,
-        help=f"Directory to scan (default: $IMMICHTAG_DIR, else {config.DEFAULT_ROOT})",
+        help="Directory to scan (default: $IMMICHTAG_DIR, else [library] dir in config.toml)",
     )
     parser.add_argument(
         "--max-images",

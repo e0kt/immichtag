@@ -17,7 +17,7 @@ description: "Task list for 001-pixai-full-retag"
 
 - **[P]**: Can run in parallel (different files, no dependency on an unfinished task)
 - **[Story]**: US1–US4, from spec.md
-- All paths are relative to the repository root `/Users/paul/programming/wd14`.
+- All paths are relative to the repository root `<repo>`.
 
 ## Constants used throughout (from research.md)
 
@@ -39,7 +39,7 @@ description: "Task list for 001-pixai-full-retag"
 
 **Purpose**: Version control, the rename, dependencies and the test scaffolding.
 
-- [X] T001 Initialize git in `/Users/paul/programming/wd14`:
+- [X] T001 Initialize git in `<repo>`:
   - Add `.pytest_cache/` and `*.egg-info/` to `.gitignore`.
   - Run `git init && git add -A && git commit -m "Baseline before immichtag migration"`, so the rename and every later change can be reviewed and reverted.
 - [X] T002 Move the package `src/wd14/` → `src/immichtag/` (`git mv`) and delete `src/immichtag/__pycache__/`.
@@ -62,7 +62,7 @@ description: "Task list for 001-pixai-full-retag"
   - an autouse fixture that sets `IMMICHTAG_STATE_DIR` to `tmp_path/state`, so tests never touch the real state dir. `config.py` must honour this override (T011).
   - a `pytest_collection_modifyitems` hook that skips `@pytest.mark.integration` tests unless `~/.cache/huggingface/hub/models--pixai-labs--pixai-tagger-v1.0/snapshots/f33cfdb53c0c90b049bab9ce066eea1118970ef8/model.safetensors` exists and `torch.backends.mps.is_available()` is true.
 - [X] T006 [P] Create the test fixtures in `tests/fixtures/`:
-  - `tests/fixtures/wd14_legacy.xmp`: a copy of one real sidecar from `/Users/paul/docker/immich/library/upload/**/*.jpg.xmp`, containing `tag/bangs` and `rating/sensitive`, three `rdf:Bag`s and no provenance.
+  - `tests/fixtures/wd14_legacy.xmp`: a copy of one real sidecar from `~/docker/immich/library/upload/**/*.jpg.xmp`, containing `tag/bangs` and `rating/sensitive`, three `rdf:Bag`s and no provenance.
   - `tests/fixtures/immichtag_current.xmp`: the exact example in [contracts/sidecar-xmp.md](./contracts/sidecar-xmp.md), including the foreign tag `my_album/trip`.
   - `tests/fixtures/immich_rewritten.xmp`: the exiftool-rewritten form from research R5, with the full 40-hex revision. Provenance is written as child elements in their own `rdf:Description`; it has `dc:description/rdf:Alt/rdf:li` = `hello`, `xmp:Rating` 0, a `TagsList` `rdf:Seq` with `parody/fate∕grand_order`, `tag/long_hair` and `my_album/trip`, and stale `HierarchicalSubject`/`dc:subject` bags without `my_album/trip`.
   - `tests/fixtures/images/`: `a.jpg` (64×48 RGB) and `b.png` (48×64 RGBA with a transparent corner), generated once with Pillow.
@@ -107,7 +107,7 @@ description: "Task list for 001-pixai-full-retag"
 ### Implementation
 
 - [X] T011 [P] Create `src/immichtag/config.py`, per research R12:
-  - `DEFAULT_ROOT = Path("/Users/paul/docker/immich/library/upload")`
+  - `DEFAULT_ROOT = Path("~/docker/immich/library/upload")`
   - `resolve_root(cli_dir: str | None) -> Path`, which prints the one-time `WD14_DIR` notice
   - `state_dir(root) -> Path`, created on demand, honouring `IMMICHTAG_STATE_DIR`
   - `library_id(root)`

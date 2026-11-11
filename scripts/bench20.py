@@ -23,7 +23,7 @@ def main() -> int:
     parser.add_argument("--paths", type=Path, help="File with one image path per line instead of sampling")
     parser.add_argument("-n", type=int, default=20, help="Sample size (default 20)")
     parser.add_argument("--seed", type=int, default=20)
-    parser.add_argument("--device", choices=("auto", "mps", "cpu"), default="auto")
+    parser.add_argument("--device", choices=("auto", "cuda", "mps", "cpu"), default="auto")
     args = parser.parse_args()
 
     if args.paths:

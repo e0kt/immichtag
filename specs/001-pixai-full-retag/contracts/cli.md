@@ -3,7 +3,7 @@
 Five console scripts are installed by `pyproject.toml`. **No `wd14*` scripts remain** (FR-028).
 
 Common to all commands:
-- `--dir PATH` overrides the library root. Resolution order: `--dir`, then `$IMMICHTAG_DIR`, then `/Users/paul/docker/immich/library/upload`.
+- `--dir PATH` overrides the library root. Resolution order: `--dir`, then `$IMMICHTAG_DIR`, then `~/docker/immich/library/upload`.
 - If `$WD14_DIR` is set and `$IMMICHTAG_DIR` is not, the command prints once to stderr: `note: WD14_DIR is no longer read; set IMMICHTAG_DIR instead` (FR-029).
 - Exit codes: `0` success; `1` completed, but every item failed; `2` usage error; `3` another tagging run holds the lock; `130` interrupted.
 
@@ -39,7 +39,7 @@ Removed flag: `--rating-threshold` (rating is argmax). If it is passed, argparse
 **Stdout (normal run):**
 
 ```text
-Scanning /Users/paul/docker/immich/library/upload ...
+Scanning ~/docker/immich/library/upload ...
 87969 images: 12 new, 87957 to re-tag (87957 legacy, 0 outdated), 0 current.
 Backing up 87957 sidecars -> ~/Library/Application Support/immichtag/3fa1…/backups/20260922T031415Z (38.7 MB)
 Loading pixai-labs/pixai-tagger-v1.0 @ f33cfdb on mps (fp16) ...

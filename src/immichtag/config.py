@@ -1,7 +1,7 @@
 """Where things live: the library root, the Immich settings, and per-library state.
 
 Every entry point resolves the library root here, so `--dir`, `IMMICHTAG_DIR` and the
-default mean the same thing in the tagger, the filter and the web UI.
+config file mean the same thing in the tagger, the filter and the web UI.
 """
 
 from __future__ import annotations
@@ -13,32 +13,35 @@ import tomllib
 from dataclasses import dataclass
 from pathlib import Path
 
-#: Scanned when neither --dir nor IMMICHTAG_DIR is given: Immich's upload tree.
-DEFAULT_ROOT = Path("/Users/paul/docker/immich/library/upload")
 DEFAULT_IMMICH_URL = "http://127.0.0.1:2283"
 
-_WD14_NOTICE_SHOWN = False
+#: How the library is chosen, for help texts and the error when none is.
+ROOT_SOURCES = "--dir, $IMMICHTAG_DIR, or [library] dir in config.toml"
+
+_PERMISSION_WARNED: set = set()
 
 
 def resolve_root(cli_dir: str | None) -> Path:
-    """`--dir`, else `$IMMICHTAG_DIR`, else the Immich upload tree."""
+    """`--dir`, else `$IMMICHTAG_DIR`, else `[library] dir` in config.toml.
+
+    There is no built-in default: guessing would tag (and back up, and sync) a folder
+    the user never chose. With none of the three set, exit with a usage error.
+    """
     if cli_dir:
         return Path(cli_dir).expanduser().resolve()
     env = os.environ.get("IMMICHTAG_DIR")
     if env:
         return Path(env).expanduser().resolve()
-    if os.environ.get("WD14_DIR"):
-        _wd14_notice()
-    return DEFAULT_ROOT.resolve()
-
-
-def _wd14_notice() -> None:
-    # The old variable silently pointing nowhere would tag the default library instead
-    # of the one the user meant, so say so — once, not on every call.
-    global _WD14_NOTICE_SHOWN
-    if not _WD14_NOTICE_SHOWN:
-        _WD14_NOTICE_SHOWN = True
-        print("note: WD14_DIR is no longer read; set IMMICHTAG_DIR instead", file=sys.stderr)
+    configured = (_load_config().get("library") or {}).get("dir")
+    if configured:
+        return Path(str(configured).strip()).expanduser().resolve()
+    print(
+        f"error: no library given. Use {ROOT_SOURCES} ({config_path()}).\n"
+        "For Immich, that is the folder mounted as /data (UPLOAD_LOCATION in Immich's .env), "
+        "or an external library's folder.",
+        file=sys.stderr,
+    )
+    raise SystemExit(2)
 
 
 def library_id(root: Path) -> str:
@@ -89,18 +92,26 @@ class ImmichSettings:
     __str__ = __repr__
 
 
+def _load_config() -> dict:
+    """The whole config.toml, or {} when there is none."""
+    path = config_path()
+    if not path.is_file():
+        return {}
+    with path.open("rb") as handle:
+        data = tomllib.load(handle)
+    loose = path.stat().st_mode & 0o077
+    if (data.get("immich") or {}).get("api_key") and loose and path not in _PERMISSION_WARNED:
+        _PERMISSION_WARNED.add(path)
+        print(
+            f"warning: {path} is readable by other users and holds an API key; chmod 600 it",
+            file=sys.stderr,
+        )
+    return data
+
+
 def load_immich_settings() -> ImmichSettings:
     """`config.toml`'s [immich] table, each value overridable by IMMICHTAG_*."""
-    path = config_path()
-    table: dict = {}
-    if path.is_file():
-        if path.stat().st_mode & 0o077:
-            print(
-                f"warning: {path} is readable by other users and holds an API key; chmod 600 it",
-                file=sys.stderr,
-            )
-        with path.open("rb") as handle:
-            table = tomllib.load(handle).get("immich", {}) or {}
+    table: dict = _load_config().get("immich", {}) or {}
 
     def pick(env: str, key: str, default: str | None = None) -> str | None:
         value = os.environ.get(env) or table.get(key) or default

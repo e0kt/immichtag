@@ -35,7 +35,7 @@ def tmp_library(tmp_path: Path) -> Path:
 def _isolated_state(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("IMMICHTAG_STATE_DIR", str(tmp_path / "state"))
     monkeypatch.setenv("IMMICHTAG_CONFIG", str(tmp_path / "config.toml"))
-    for name in ("IMMICHTAG_DIR", "WD14_DIR", "IMMICHTAG_URL",
+    for name in ("IMMICHTAG_DIR", "IMMICHTAG_URL",
                  "IMMICHTAG_API_KEY", "IMMICHTAG_PATH_MAP"):
         monkeypatch.delenv(name, raising=False)
 
@@ -47,13 +47,13 @@ def _model_available() -> bool:
         import torch
     except ImportError:
         return False
-    return torch.backends.mps.is_available()
+    return torch.backends.mps.is_available() or torch.cuda.is_available()
 
 
 def pytest_collection_modifyitems(config: pytest.Config, items: list) -> None:
     if _model_available():
         return
-    skip = pytest.mark.skip(reason="PixAI model not cached or no Apple GPU")
+    skip = pytest.mark.skip(reason="PixAI model not cached or no GPU")
     for item in items:
         if "integration" in item.keywords:
             item.add_marker(skip)

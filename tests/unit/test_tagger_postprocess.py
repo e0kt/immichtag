@@ -94,3 +94,28 @@ def test_huge_images_are_not_refused():
     from PIL import Image
 
     assert Image.MAX_IMAGE_PIXELS is None
+
+
+def test_device_auto_prefers_cuda_then_mps_then_cpu(monkeypatch):
+    import torch
+    from immichtag import tagger
+
+    monkeypatch.setattr(torch.cuda, "is_available", lambda: True)
+    monkeypatch.setattr(torch.backends.mps, "is_available", lambda: True)
+    assert tagger.select_device("auto") == "cuda"
+    monkeypatch.setattr(torch.cuda, "is_available", lambda: False)
+    assert tagger.select_device("auto") == "mps"
+    monkeypatch.setattr(torch.backends.mps, "is_available", lambda: False)
+    assert tagger.select_device("auto") == "cpu"
+    assert tagger.precision("cpu") == "fp32"
+    assert tagger.precision("cuda") == tagger.precision("mps") == "fp16"
+
+
+def test_device_explicit_but_missing_is_an_error(monkeypatch):
+    import torch
+    from immichtag import tagger
+
+    monkeypatch.setattr(torch.cuda, "is_available", lambda: False)
+    with pytest.raises(RuntimeError, match="--device cuda"):
+        tagger.select_device("cuda")
+    assert tagger.select_device("cpu") == "cpu"

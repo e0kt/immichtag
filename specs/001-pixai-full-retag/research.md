@@ -148,7 +148,7 @@ If the deprecated endpoint disappears in a future Immich version (HTTP 404), the
 
 **Asset lookup**: `POST /api/search/metadata {page, size: 1000, withDeleted: true}` returns `id` and `originalPath` for every asset. That is about 88 requests for the whole library, cached per run.
 
-**Path mapping**: Immich sees `/data/upload/<user>/…` (queried); this Mac sees `<UPLOAD_LOCATION>/upload/<user>/…`. The mapping is taken from config (`immich.path_map = "/data=/Users/paul/docker/immich/library"`). When the setting is absent, it is auto-detected by matching the longest common suffix of one known asset path against the local library root.
+**Path mapping**: Immich sees `/data/upload/<user>/…` (queried); this Mac sees `<UPLOAD_LOCATION>/upload/<user>/…`. The mapping is taken from config (`immich.path_map = "/data=~/docker/immich/library"`). When the setting is absent, it is auto-detected by matching the longest common suffix of one known asset path against the local library root.
 
 **Alternatives considered**:
 - Writing to Immich's Postgres directly: rejected, because it bypasses Immich's own tag closure table and is unsupported.
@@ -201,7 +201,7 @@ If the deprecated endpoint disappears in a future Immich version (HTTP 404), the
 **Decision**:
 
 - **Library root**:
-  - Resolution order: `--dir`, then `IMMICHTAG_DIR`, then `/Users/paul/docker/immich/library/upload`.
+  - Resolution order: `--dir`, then `IMMICHTAG_DIR`, then `~/docker/immich/library/upload`.
   - `WD14_DIR` no longer has any effect. If it is set and `IMMICHTAG_DIR` is not, a one-line notice is printed per run (FR-029).
 - **Immich settings**: `~/.config/immichtag/config.toml`, parsed with `tomllib`:
 
@@ -209,7 +209,7 @@ If the deprecated endpoint disappears in a future Immich version (HTTP 404), the
   [immich]
   url = "http://127.0.0.1:2283"
   api_key = "…"
-  path_map = "/data=/Users/paul/docker/immich/library"
+  path_map = "/data=~/docker/immich/library"
   ```
 
   - Environment variables `IMMICHTAG_URL`, `IMMICHTAG_API_KEY` and `IMMICHTAG_PATH_MAP` override the file.

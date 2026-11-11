@@ -17,7 +17,7 @@ def build_parser() -> argparse.ArgumentParser:
     for name, text in (("list", "List backups, newest first"), ("restore", "Restore one backup")):
         cmd = sub.add_parser(name, help=text)
         cmd.add_argument("--dir", default=None,
-                         help=f"Library (default: $IMMICHTAG_DIR, else {config.DEFAULT_ROOT})")
+                         help="Library (default: $IMMICHTAG_DIR, else [library] dir in config.toml)")
         if name == "restore":
             cmd.add_argument("id", help="Backup id, as shown by `immichtag-backup list`")
             cmd.add_argument("--dry-run", action="store_true", help="Show what would be restored")

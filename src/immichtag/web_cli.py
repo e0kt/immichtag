@@ -18,7 +18,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--dir",
         default=None,
-        help=f"Directory to index (default: $IMMICHTAG_DIR, else {config.DEFAULT_ROOT})",
+        help="Directory to index (default: $IMMICHTAG_DIR, else [library] dir in config.toml)",
     )
     # None, not the default itself: an explicitly chosen port must never be swapped
     # for a free one, or the server comes up somewhere the user isn't looking.
